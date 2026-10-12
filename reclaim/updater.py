@@ -191,17 +191,22 @@ class Updater:
         with self.opener(rel["url"], timeout=60) as r, open(zpath, "wb") as f:
             total = rel.get("size") or 0
             done = 0
+            shown = -1
             for chunk in iter(lambda: r.read(1 << 16), b""):
                 f.write(chunk)
                 h.update(chunk)
                 done += len(chunk)
-                if total:
-                    self.state["progress"] = "Downloading %d%%" % (done * 100 // total)
+                pct = done * 100 // total if total else 0
+                if total and pct // 5 != shown:       # redraw in 5% steps, not per chunk
+                    shown = pct // 5
+                    self.state["progress"] = "Downloading %d%%" % pct
+                    self.daemon.touch()
         with self.opener(rel["sha_url"]) as r:
             want = r.read().decode().split()[0].lower()
         if h.hexdigest() != want:
             raise UpdateError("download is corrupt (checksum mismatch)")
         self.state["progress"] = "Unpacking"
+        self.daemon.touch()
         out = os.path.join(work, "out")
         self._check(["/usr/bin/ditto", "-x", "-k", zpath, out], "unpack")
         new_app = os.path.join(out, "Reclaim.app")

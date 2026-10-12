@@ -14,7 +14,8 @@ from AppKit import (NSApplication, NSApplicationActivateIgnoringOtherApps,
                     NSPasteboardTypePNG, NSPasteboardTypeString,
                     NSPasteboardTypeTIFF, NSPasteboardURLReadingFileURLsOnlyKey,
                     NSRunningApplication, NSWorkspace)
-from Foundation import NSURL, NSData, NSDictionary
+from Foundation import (NSURL, NSData, NSDictionary, NSDistributedNotificationCenter,
+                        NSObject)
 
 from . import clipboard
 
@@ -106,6 +107,39 @@ def press_cmd_v():
     return True
 
 
+# --------------------------------------------------------------- idle
+
+class _IdleObserver(NSObject):
+    """Pauses clipboard polling while nobody can be copying anything:
+    screen locked, displays asleep, or the Mac going to sleep."""
+
+    def initWithOwner_(self, owner):
+        self = objc.super(_IdleObserver, self).init()
+        if self is None:
+            return None
+        self.owner = owner
+        return self
+
+    def idle_(self, _note):
+        self.owner.pause()
+
+    def active_(self, _note):
+        self.owner.resume()
+
+
+def _observe_idle(owner):
+    obs = _IdleObserver.alloc().initWithOwner_(owner)
+    ws = NSWorkspace.sharedWorkspace().notificationCenter()
+    for name in ("NSWorkspaceScreensDidSleepNotification", "NSWorkspaceWillSleepNotification"):
+        ws.addObserver_selector_name_object_(obs, "idle:", name, None)
+    for name in ("NSWorkspaceScreensDidWakeNotification", "NSWorkspaceDidWakeNotification"):
+        ws.addObserver_selector_name_object_(obs, "active:", name, None)
+    dist = NSDistributedNotificationCenter.defaultCenter()
+    dist.addObserver_selector_name_object_(obs, "idle:", "com.apple.screenIsLocked", None)
+    dist.addObserver_selector_name_object_(obs, "active:", "com.apple.screenIsUnlocked", None)
+    return obs
+
+
 # --------------------------------------------------------------- picker
 
 class Clipboard:
@@ -122,6 +156,8 @@ class Clipboard:
         self.prev_app = None
         self.trusted = False
         self.ticks = 0
+        self.paused = False
+        self.idle_observer = None
 
     @property
     def cfg(self):
@@ -135,10 +171,33 @@ class Clipboard:
             # The shortcut can only be heard in other apps with Accessibility,
             # so ask now rather than on first use (which it would never reach).
             can_paste(prompt=True)
-        self.timer.start()
+        self._start_timer()
+        try:
+            self.idle_observer = _observe_idle(self)
+        except Exception as e:
+            self.log("Clipboard idle pause unavailable: %r" % e)
         self.install_hotkey()
         if self.on_change:
             self.on_change()
+
+    def _start_timer(self):
+        self.timer.start()
+        try:
+            # Half a second of slack lets macOS batch this with other wake-ups.
+            self.timer._nstimer.setTolerance_(0.25)
+        except Exception:
+            pass
+
+    def pause(self):
+        if not self.paused:
+            self.paused = True
+            self.timer.stop()
+
+    def resume(self):
+        if self.paused:
+            self.paused = False
+            self._tick(None)                       # catch anything copied meanwhile
+            self._start_timer()
 
     @staticmethod
     def _may_nag():

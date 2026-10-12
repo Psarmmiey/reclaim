@@ -4,7 +4,7 @@ import threading
 import time
 
 from . import BUILD, __version__, version_string
-from . import classify, clean, config, format as fmt, notify, rules, scan, store
+from . import classify, clean, config, format as fmt, notify, power, rules, scan, store
 
 CHECK_JITTER = 0.1
 
@@ -22,6 +22,9 @@ class Daemon:
         self.clipboard = None         # set by the menu bar app when it records
         self.on_config = []           # called after settings change
         self.rev = 0                  # bumped on every change the UIs should show
+        self.on_touch = []            # called (from any thread) after touch()
+        self.defer = power.should_defer
+        self.deferred_logged = False
         self._lock = threading.Lock()
         from . import tools, updater
         tools.load_all()
@@ -36,6 +39,11 @@ class Daemon:
     def touch(self):
         """Something the menu bar or dashboard shows has changed."""
         self.rev += 1
+        for fn in list(self.on_touch):
+            try:
+                fn()
+            except Exception:
+                pass
 
     def status(self):
         s = store.latest_scan(self.con)
@@ -146,6 +154,7 @@ class Daemon:
     def _start_purge(self, folders, sizes):
         def tick(name):
             self.emptying["freed_bytes"] += sizes.get(name, 0)
+            self.touch()
 
         def work():
             state = self.emptying
@@ -222,7 +231,14 @@ class Daemon:
         if level == "ok":
             self.last_alert_level = None
 
-        if due or (level != "ok" and scan_age > 1800):
+        if due and level == "ok" and not self.cfg.get("scan_on_battery") and self.defer():
+            # Plenty of space and running on battery: the scan can wait.
+            if not self.deferred_logged:
+                self.deferred_logged = True
+                store.log_event(self.con, "info", "Scheduled scan postponed: on battery "
+                                                  "or in Low Power Mode")
+        elif due or (level != "ok" and scan_age > 1800):
+            self.deferred_logged = False
             self.scan_now()
             self.maybe_auto_clean(free)
 
@@ -268,6 +284,8 @@ class Daemon:
                         subtitle="Automatic cleanup")
 
     def run_forever(self):
+        # Scheduled work is never urgent: efficiency cores, throttled disk.
+        power.set_thread_qos(power.QOS_BACKGROUND)
         store.log_event(self.con, "info", "Reclaim %s started" % version_string())
         self.resume_purges()
         interval = max(60, int(self.cfg.get("check_interval_minutes", 30)) * 60)

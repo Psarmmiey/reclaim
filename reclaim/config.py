@@ -8,6 +8,7 @@ from . import paths
 DEFAULTS = {
     "scan_root": paths.HOME,
     "scan_interval_hours": 12,
+    "scan_on_battery": False,              # scheduled scans wait for the charger
     "check_interval_minutes": 30,
 
     # Free space thresholds, in GB.
