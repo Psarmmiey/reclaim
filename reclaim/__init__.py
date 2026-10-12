@@ -1,5 +1,5 @@
 """Reclaim - keep an eye on what is eating your Mac's disk."""
-__version__ = "0.3.0"  # x-release-please-version
+__version__ = "0.4.0"  # x-release-please-version
 APP_NAME = "Reclaim"
 
 try:                                  # written by build-app.sh

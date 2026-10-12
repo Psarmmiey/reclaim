@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/Psarmmiey/reclaim/compare/v0.3.0...v0.4.0) (2026-10-12)
+
+
+### Features
+
+* update from GitHub releases ([fd5b71f](https://github.com/Psarmmiey/reclaim/commit/fd5b71f06ec111035b766c7d7243860a63d8d964))
+
 ## [0.3.0](https://github.com/Psarmmiey/reclaim/compare/v0.2.0...v0.3.0) (2026-10-12)
 
 
