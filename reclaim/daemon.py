@@ -30,6 +30,9 @@ class Daemon:
 
     # ------------------------------------------------------------ state
 
+    def log(self, level, message):
+        store.log_event(self.con, level, message)
+
     def touch(self):
         """Something the menu bar or dashboard shows has changed."""
         self.rev += 1

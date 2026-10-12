@@ -199,3 +199,28 @@ class UpdaterTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TLSTests(unittest.TestCase):
+    def test_requests_carry_a_verifying_tls_context(self):
+        for mod in list(sys.modules):
+            if mod.startswith("reclaim"):
+                del sys.modules[mod]
+        from reclaim import updater
+        seen = {}
+
+        def fake_urlopen(req, timeout=None, context=None):
+            seen["ctx"] = context
+            return Resp(b"{}")
+        real = updater.urllib.request.urlopen
+        updater.urllib.request.urlopen = fake_urlopen
+        try:
+            updater._get("https://example.invalid")
+        finally:
+            updater.urllib.request.urlopen = real
+        import ssl
+        ctx = seen["ctx"]
+        self.assertIsInstance(ctx, ssl.SSLContext)
+        self.assertEqual(ctx.verify_mode, ssl.CERT_REQUIRED)
+        self.assertTrue(ctx.check_hostname)
+

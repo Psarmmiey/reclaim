@@ -190,6 +190,8 @@ def run(daemon=None):
                 upd.title = "Checking for updates..."
             elif up.get("available"):
                 upd.title = "Update to %s..." % up["available"]["version"]
+            elif up.get("error"):
+                upd.title = "Check for updates... (last check failed)"
             else:
                 upd.title = "Check for updates..."
             item = self.menu["Empty Reclaim trash"]

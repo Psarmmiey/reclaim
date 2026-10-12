@@ -76,10 +76,10 @@ SOURCE="${GITHUB_SHA:+${GITHUB_SHA:0:10}}"
           -not -path '*/__pycache__/*' -print0 | sort -z | xargs -0 shasum | shasum | cut -c1-10)"
 
 echo "Checking build tools..."
-if ! "$PY" -c "import py2app, rumps, objc, AppKit" 2>/dev/null; then
-  "$PY" -m pip install --user --quiet --upgrade py2app rumps pyobjc-framework-Cocoa 2>/dev/null \
-    || "$PY" -m pip install --user --quiet --upgrade --break-system-packages \
-         py2app rumps pyobjc-framework-Cocoa
+DEPS="py2app rumps pyobjc-framework-Cocoa certifi truststore"
+if ! "$PY" -c "import py2app, rumps, objc, AppKit, certifi, truststore" 2>/dev/null; then
+  "$PY" -m pip install --user --quiet --upgrade $DEPS 2>/dev/null \
+    || "$PY" -m pip install --user --quiet --upgrade --break-system-packages $DEPS
 fi
 
 # Build in a scratch copy so py2app never sees pyproject.toml or old builds.

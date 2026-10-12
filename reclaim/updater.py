@@ -12,6 +12,7 @@ import os
 import plistlib
 import re
 import shutil
+import ssl
 import subprocess
 import threading
 import time
@@ -41,11 +42,37 @@ def is_newer(candidate, current):
     return parse_version(candidate) > parse_version(current)
 
 
+def ssl_context():
+    """Trust store for HTTPS.
+
+    Python inside an app bundle has its own OpenSSL but no certificate list,
+    so the default context rejects every server. truststore asks macOS
+    instead, so certificates trusted in the Keychain (a company proxy's, say)
+    work as they do in Safari; certifi's Mozilla list is the fallback.
+    """
+    try:
+        import truststore
+        return truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    except ImportError:
+        pass
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        return ssl.create_default_context()
+
+
+_CTX = None
+
+
 def _get(url, timeout=15):
+    global _CTX
+    if _CTX is None:
+        _CTX = ssl_context()
     req = urllib.request.Request(url, headers={
         "User-Agent": "Reclaim/%s" % __version__,
         "Accept": "application/vnd.github+json"})
-    return urllib.request.urlopen(req, timeout=timeout)
+    return urllib.request.urlopen(req, timeout=timeout, context=_CTX)
 
 
 def latest_release(opener=_get):
@@ -109,10 +136,15 @@ class Updater:
         try:
             rel = latest_release(self.opener)
             self.state["available"] = rel if is_newer(rel["version"], __version__) else None
+            self.state["latest"] = rel["version"]
+            if self.state["available"]:
+                self._log("info", "Update available: %s (you have %s)" % (rel["version"], __version__))
         except UpdateError as e:
             self.state.update(available=None, error=str(e))
-        except Exception as e:                       # offline, rate-limited...
+            self._log("warn", "Update check: %s" % e)
+        except Exception as e:                       # offline, TLS, rate-limited...
             self.state["error"] = "could not reach GitHub: %s" % e
+            self._log("error", "Update check failed: %s" % e)
         finally:
             self.state.update(checking=False, checked_at=time.time())
             self.daemon.touch()
@@ -143,6 +175,7 @@ class Updater:
             self._swap(app, new_app)
         except Exception as e:
             self.state.update(installing=False, progress=None, error=str(e))
+            self._log("error", "Update to %s failed: %s" % (rel["version"], e))
             self.daemon.touch()
             raise
         self.state["progress"] = "Restarting"
@@ -211,6 +244,11 @@ class Updater:
             subprocess.Popen(["/bin/sh", "-c", 'sleep 1; /usr/bin/open "$0"', app],
                              start_new_session=True)
             os._exit(0)
+
+    def _log(self, level, msg):
+        log = getattr(self.daemon, "log", None)
+        if log:
+            log(level, msg)
 
     def _check(self, cmd, what):
         r = self.run(cmd, capture_output=True, text=True)

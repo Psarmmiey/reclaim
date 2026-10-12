@@ -8,7 +8,7 @@ setup(
     app=["reclaim_main.py"],
     options={"py2app": {
         "argv_emulation": False,
-        "packages": ["reclaim", "rumps"],
+        "packages": ["reclaim", "rumps", "certifi", "truststore"],
         "includes": ["AppKit", "Foundation", "objc", "PyObjCTools.AppHelper"],
         "plist": {
             "CFBundleName": "Reclaim",
