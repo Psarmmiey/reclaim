@@ -59,6 +59,9 @@ class Tool:
     verb = "Remove"            # button label for acting on selected items
     icon = "broom"             # dashboard picks an inline glyph by name
     unit = "item"              # what the card counts
+    alt_verb = None            # a second action, e.g. Force Quit
+    measure = "size"           # what `bytes` means: disk size or memory
+    live = False               # rescan every time the review opens
     count_groups = False       # count top-level groups (apps) instead of leaves
 
     def scan(self, ctx, progress):
@@ -135,7 +138,8 @@ class Runner:
             items = st["items"]
             out.append({
                 "id": t.id, "name": t.name, "blurb": t.blurb, "group": t.group,
-                "verb": t.verb, "icon": t.icon, "state": st["state"],
+                "verb": t.verb, "alt_verb": t.alt_verb, "measure": t.measure,
+                "live": t.live, "icon": t.icon, "state": st["state"],
                 "message": st["message"], "error": st["error"],
                 "scanned_at": st["scanned_at"], "result": st["result"],
                 "unit": t.unit,
@@ -189,7 +193,7 @@ class Runner:
             st["scanned_at"] = time.time()
         return self._start(tid, "scanning", run)
 
-    def act(self, tid, ids):
+    def act(self, tid, ids, mode=None):
         wanted = set(ids or ())
 
         def run(t, st, progress):
@@ -200,7 +204,9 @@ class Runner:
                 st["result"] = {"freed_bytes": 0, "trashed_bytes": 0,
                                 "done": [], "failed": []}
                 return
-            res = t.act(Context(self.daemon), leaves, progress)
+            ctx = Context(self.daemon)
+            ctx.mode = mode
+            res = t.act(ctx, leaves, progress)
             st["result"] = res
             store.log_event(self.daemon.con, "info", "%s: %s on %d items, freed %s"
                             % (t.name, t.verb.lower(), len(res.get("done", [])),
@@ -213,4 +219,4 @@ class Runner:
 
 def load_all():
     """Import every tool module so each registers itself."""
-    from . import apps, files, devjunk, ai, background, trashbins  # noqa: F401
+    from . import apps, files, devjunk, ai, background, trashbins, runningapps  # noqa: F401

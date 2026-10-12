@@ -269,7 +269,10 @@ kbd{font:600 11.5px ui-monospace,Menlo,monospace;background:var(--surface-2);bor
       </div>
       <div class="actionbar" id="rv-bar">
         <div class="n" id="rv-count"></div>
-        <button class="primary" id="rv-act"></button>
+        <div style="display:flex;gap:8px">
+          <button id="rv-alt" hidden></button>
+          <button class="primary" id="rv-act"></button>
+        </div>
       </div>
     </div>
   </section>
@@ -440,6 +443,7 @@ const ICONS = {
   spark:'<path d="M12 3.5l1.8 5.2 5.2 1.8-5.2 1.8L12 17.5l-1.8-5.2L5 10.5l5.2-1.8z"/><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>',
   power:'<path d="M12 4v8"/><path d="M7.5 6.8a7 7 0 1 0 9 0"/>',
   bin:'<path d="M5 7h14M10 7V5h4v2M7 7l1 13h8l1-13"/><path d="M10.5 11v5M13.5 11v5"/>',
+  gauge:'<path d="M4.5 16a8 8 0 1 1 15 0"/><path d="M12 16l3.5-5"/><circle cx="12" cy="16" r="1.2"/>',
 };
 const icon = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICONS[k]||ICONS.box}</svg>`;
 const GROUP_ORDER = ['Cleanup','Applications','My Clutter','Performance'];
@@ -482,7 +486,8 @@ function drawToolGrid(){
         else if(t.error) st = `<span>Failed: ${esc(t.error)}</span>`;
         else if(t.scanned_at){
           const u = `${t.count} ${t.unit}${t.count===1?'':'s'}`;
-          st = t.count ? (t.bytes ? `<b>${human(t.bytes)}</b> in ${u}` : `<b>${u}</b>`) : 'Nothing found';
+          const amount = t.measure==='memory' ? `<b>${human(t.bytes)}</b> of memory` : `<b>${human(t.bytes)}</b>`;
+          st = t.count ? (t.bytes ? `${amount} in ${u}` : `<b>${u}</b>`) : 'Nothing found';
         }
         else st = 'Not scanned yet';
         const btns = tbusy(t) ? '' : (t.scanned_at && t.count
@@ -499,7 +504,12 @@ async function scanTool(id){
   TWAS[id] = 'scanning'; loadTools();
 }
 async function openTool(id, keepGroup){
-  const t = await api('/api/tools/'+id);
+  let t = await api('/api/tools/'+id);
+  if(t.live && !keepGroup && !tbusy(t)){
+    // Lists like open apps go stale fast: refresh on open.
+    await api(`/api/tools/${id}/scan`, {method:'POST'});
+    TWAS[id] = 'scanning'; t = Object.assign(t, {state:'scanning'}); loadTools();
+  }
   const prevGroup = TOOL && TOOL.id===id && keepGroup ? tgroups(TOOL)[TGROUP] : null;
   TOOL = t;
   TSEL = new Set(leaves(t.items||[]).filter(i => i.selected && !i.disabled).map(i => i.id));
@@ -531,6 +541,10 @@ function drawReviewChrome(){
   const btn = document.getElementById('rv-act');
   btn.textContent = busy && t.state==='acting' ? 'Working...' : `${t.verb}${sel.length?` (${sel.length})`:''}`;
   btn.disabled = busy || !sel.length;
+  const alt = document.getElementById('rv-alt');
+  alt.hidden = !t.alt_verb;
+  alt.textContent = t.alt_verb ? `${t.alt_verb}${sel.length?` (${sel.length})`:''}` : '';
+  alt.disabled = busy || !sel.length;
   const r = t.result;
   document.getElementById('rv-fails').innerHTML = r && r.failed && r.failed.length
     ? `<div class="fails"><b>${r.failed.length} could not be done</b>${r.failed.slice(0,8).map(f=>`${esc(f.label||f.id)}: ${esc(f.error)}`).join('<br>')}</div>` : '';
@@ -557,7 +571,7 @@ function drawReview(){
   document.getElementById('rv-table').innerHTML = !rows.length
     ? '<tbody><tr><td class="empty">Nothing found. Rescan to check again.</td></tr></tbody>'
     : `<thead><tr><th class="c"><input type="checkbox" id="rv-all" ${allOn?'checked':''} ${pickable.length?'':'disabled'}></th>
-        <th>${esc(g.label)}${g.note?` <span class="src">${esc(g.note)}</span>`:''}</th><th style="text-align:right">${t.id==='background'?'State':'Size'}</th></tr></thead><tbody>` +
+        <th>${esc(g.label)}${g.note?` <span class="src">${esc(g.note)}</span>`:''}</th><th style="text-align:right">${t.id==='background'?'State':t.measure==='memory'?'Memory':'Size'}</th></tr></thead><tbody>` +
       rows.map(r => `<tr class="${r.disabled?'dis':''}"><td class="c"><input type="checkbox" data-i="${esc(r.id)}"
           ${TSEL.has(r.id)?'checked':''} ${r.disabled?'disabled':''}></td>
         <td class="l"><b>${esc(r.label)}${r.safety==='safe'?' <span class="tag safe">rebuilds itself</span>':''}</b>
@@ -572,7 +586,18 @@ function drawReview(){
 }
 document.getElementById('rv-back').onclick = closeTool;
 document.getElementById('rv-rescan').onclick = async () => { await scanTool(TOOL.id); TOOL.state='scanning'; drawReviewChrome(); };
+async function actOn(mode){
+  const ids = [...TSEL];
+  const verb = mode==='force' ? TOOL.alt_verb : TOOL.verb;
+  const extra = mode==='force' ? '\n\nForce quitting closes them immediately; anything unsaved is lost.'
+    : TOOL.id==='running' ? '\n\nEach app is asked to quit, as with ⌘Q, so it can ask you to save.' : '';
+  if(!confirm(`${verb} ${ids.length} app${ids.length===1?'':'s'}?${extra}`)) return;
+  await api(`/api/tools/${TOOL.id}/act`, {method:'POST', body:JSON.stringify({ids, mode})});
+  TWAS[TOOL.id] = 'acting'; TOOL.state = 'acting'; drawReviewChrome(); loadTools();
+}
+document.getElementById('rv-alt').onclick = () => actOn('force');
 document.getElementById('rv-act').onclick = async () => {
+  if(TOOL.id==='running') return actOn(null);
   const ids = [...TSEL];
   const personal = leaves(TOOL.items).some(i => TSEL.has(i.id) && (i.kind==='personal' || i.kind==='app'));
   const msg = `${TOOL.verb} ${ids.length} item${ids.length===1?'':'s'}?` +

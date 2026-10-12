@@ -35,6 +35,15 @@ def _menu_bar_only():
         pass
 
 
+def _lenient(timer, seconds):
+    """Allow macOS to fire a rumps.Timer up to `seconds` late, batching it
+    with other wake-ups instead of waking the CPU just for us."""
+    try:
+        timer._nstimer.setTolerance_(seconds)
+    except Exception:
+        pass
+
+
 def _require_rumps():
     try:
         import rumps                                    # noqa: F401
@@ -66,6 +75,7 @@ def run(daemon=None):
                 None,
                 rumps.MenuItem("Biggest items", callback=None),
                 rumps.MenuItem("Clipboard", callback=None),
+                rumps.MenuItem("Running apps", callback=None),
                 None,
                 rumps.MenuItem("Scan now", callback=self.on_scan),
                 rumps.MenuItem("Clean safe caches", callback=self.on_clean),
@@ -83,6 +93,14 @@ def run(daemon=None):
                 rumps.MenuItem("Quit Reclaim", callback=self.on_quit),
             ]
             self.seen_rev = -1
+            self._redraw_pending = False
+            self._pending_note = None
+            d.on_touch.append(self._touched)
+            # Free space drifts without events, so that one still ticks; the
+            # tolerance lets macOS fold it into wake-ups it is doing anyway.
+            self.refresher = rumps.Timer(self.refresh, 30)
+            self.refresher.start()
+            _lenient(self.refresher, 10)
             from . import launchd as _ld
             self.menu["Start at login"].state = 1 if _ld.is_installed() else 0
             self.clip = None
@@ -97,21 +115,90 @@ def run(daemon=None):
                 except Exception as e:                # never take the app down
                     from . import store
                     store.log_event(d.con, "error", "Clipboard history off: %s" % e)
+            self.apps = None
+            try:
+                from . import running
+                self.apps = running.backend()
+                running.observe_launches(self._apps_changed)
+            except Exception as e:
+                from . import store
+                store.log_event(d.con, "error", "Running apps list off: %s" % e)
             self.refresh(None)
             self.refresh_clips()
             if self.clip:
                 self.clip.start()
 
-        @rumps.timer(1)
-        def sync(self, _sender):
-            """Redraw as soon as anything changes, from here or the dashboard."""
-            note, self._pending_note = getattr(self, "_pending_note", None), None
+        # Redraws are event-driven: any change anywhere calls daemon.touch(),
+        # which schedules one redraw on the main thread. No polling timer.
+
+        def _touched(self):
+            if self._redraw_pending:
+                return                       # a redraw is already on its way
+            self._redraw_pending = True
+            from PyObjCTools import AppHelper
+            AppHelper.callAfter(self._redraw)
+
+        def _redraw(self):
+            self._redraw_pending = False
+            note, self._pending_note = self._pending_note, None
             if note:
                 rumps.notification("Reclaim", note, "")
+            while self.daemon.empty_done:
+                done = self.daemon.empty_done.pop(0)
+                rumps.notification("Reclaim", "Freed %s" % fmt.human(done["freed_bytes"]),
+                                   "Reclaim trash emptied.")
             if self.daemon.rev != self.seen_rev:
                 self.seen_rev = self.daemon.rev
                 self.refresh(None)
                 self.refresh_clips()
+
+        # ------------------------------------------------------- running apps
+
+        def _apps_changed(self):
+            from PyObjCTools import AppHelper
+            AppHelper.callAfter(self.refresh_running)
+
+        def refresh_running(self):
+            from . import running
+            parent = self.menu["Running apps"]
+            if parent._menu is not None:
+                parent.clear()
+            if not self.apps:
+                parent.add(rumps.MenuItem("Not available"))
+                return
+            rows = running.snapshot(self.apps)
+            for a in rows[:30]:
+                title = "%s  %s" % (a["name"], fmt.human(a["memory"]))
+                item = rumps.MenuItem(title)
+                item.add(rumps.MenuItem("Show", callback=self._app_cb("show", a)))
+                if not a["protected"]:
+                    item.add(rumps.MenuItem("Quit", callback=self._app_cb("quit", a)))
+                    item.add(rumps.MenuItem("Force Quit...", callback=self._app_cb("force", a)))
+                parent.add(item)
+            if not rows:
+                parent.add(rumps.MenuItem("Nothing open"))
+            parent.add(rumps.separator)
+            parent.add(rumps.MenuItem("Open in dashboard...", callback=lambda _: webbrowser.open(
+                server.url(self.daemon.cfg) + "#tools/running")))
+
+        def _app_cb(self, action, app):
+            def cb(_):
+                if action == "show":
+                    self.apps.show(app["pid"])
+                    return
+                if action == "force" and not _alert(
+                        title="Force %s to quit?" % app["name"],
+                        message="You will lose any unsaved changes.",
+                        ok="Force Quit", cancel="Cancel"):
+                    return
+                if not self.apps.quit(app["pid"], force=(action == "force")):
+                    self._note("%s did not quit. Try Force Quit." % app["name"])
+            return cb
+
+        def _note(self, text):
+            """Show a notification from any thread."""
+            self._pending_note = text
+            self.daemon.touch()
 
         # ------------------------------------------------------- clipboard
 
@@ -165,12 +252,13 @@ def run(daemon=None):
 
         # ------------------------------------------------------- refresh
 
-        @rumps.timer(30)
         def refresh(self, _sender):
             try:
                 s = self.daemon.status()
             except Exception:
                 return
+            if _sender is not None:          # the 30 s tick, not an event redraw
+                self.refresh_running()
             mark = {"ok": "", "low": " ⚠︎", "critical": " ⚠︎"}[s["level"]]
             self.title = "%.0fGB%s" % (fmt.gb(s["free_bytes"]), mark)
             self.menu["Free space"].title = "%s free of %s" % (
@@ -299,17 +387,6 @@ def run(daemon=None):
             if self.daemon.empty_trash_async():
                 self.refresh(None)
 
-        @rumps.timer(2)
-        def watch_emptying(self, _sender):
-            """Keep progress live and announce finished runs on the main thread."""
-            if self.daemon.emptying:
-                self.refresh(None)
-            while self.daemon.empty_done:
-                done = self.daemon.empty_done.pop(0)
-                rumps.notification("Reclaim", "Freed %s" % fmt.human(done["freed_bytes"]),
-                                   "Reclaim trash emptied.")
-                self.refresh(None)
-
         def on_dashboard(self, _):
             webbrowser.open(server.url(self.daemon.cfg))
 
@@ -335,8 +412,8 @@ def run(daemon=None):
             if not rel:
                 def check():
                     found = up.check()
-                    self._pending_note = ("Reclaim %s is out" % found["version"]) if found \
-                        else (up.state.get("error") or "You have the latest version")
+                    self._note(("Reclaim %s is out" % found["version"]) if found
+                               else (up.state.get("error") or "You have the latest version"))
                 threading.Thread(target=check, daemon=True).start()
                 return
             if not _alert(title="Update to Reclaim %s?" % rel["version"],
@@ -349,7 +426,7 @@ def run(daemon=None):
                 try:
                     up.install()
                 except Exception as e:
-                    self._pending_note = "Update failed: %s" % e
+                    self._note("Update failed: %s" % e)
             threading.Thread(target=go, daemon=True).start()
 
         def on_login_item(self, sender):

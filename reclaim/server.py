@@ -279,7 +279,8 @@ class Handler(BaseHTTPRequestHandler):
             ids = body.get("ids")
             if not isinstance(ids, list):
                 return self._json({"error": "ids must be a list"}, 400)
-            return self._json({"started": d.tools.act(parts[3], [str(i) for i in ids[:5000]])})
+            mode = body.get("mode") if body.get("mode") in ("force",) else None
+            return self._json({"started": d.tools.act(parts[3], [str(i) for i in ids[:5000]], mode)})
 
         if route == "/api/restore-all":
             done, failed = 0, []

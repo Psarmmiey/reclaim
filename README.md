@@ -11,8 +11,16 @@ problem, and takes the space back when you say so.
 - **Auto-clean, narrowly scoped**: when free space drops below your threshold,
   Reclaim clears caches that rebuild themselves. Nothing else, ever.
 - **Tools**: Uninstaller, App Leftovers, AI Clutter, Large and Old Files,
-  Duplicate Finder, Downloads, Trash Bins, Developer Junk, and Login and
-  Background Items. Each scans, shows what it found, and acts only on what you tick.
+  Duplicate Finder, Downloads, Trash Bins, Developer Junk, Login and
+  Background Items, and Running Apps. Each scans, shows what it found, and acts
+  only on what you tick.
+- **Running apps**: what the Force Quit window (⌘⌥Esc) shows, with memory and
+  CPU per app (helpers included), in the menu bar and the dashboard. Quit asks
+  nicely, Force Quit doesn't.
+- **Easy on battery**: the menu bar redraws on events rather than polling,
+  timers let macOS batch wake-ups, clipboard checks pause while the screen is
+  locked or asleep, and scheduled scans run at background priority and wait for
+  the charger unless space is low.
 - **Clipboard history**: searchable, with pinned items, a picker on
   `ctrl+cmd+v`, and paste straight into the app you were in. Anything a
   password manager marks as concealed is never saved.
