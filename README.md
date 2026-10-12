@@ -129,11 +129,15 @@ protected folders, Reclaim's own data) and the classifier clamp.
 
 ## Releasing
 
-Bump `__version__` in `reclaim/__init__.py`, then tag and push:
+Releases are cut by [Release Please](https://github.com/googleapis/release-please)
+from the commit history, so commit messages follow
+[Conventional Commits](https://www.conventionalcommits.org/):
 
-```sh
-git tag v0.3.0 && git push origin v0.3.0
-```
+- `fix:` makes a patch release, `feat:` a minor one.
+- `docs:`, `test:`, `ci:` and `chore:` are left out of the changelog.
+- A `!` after the type (or a `BREAKING CHANGE:` footer) makes a **major** release.
+  Use it only when that is the intent.
 
-GitHub Actions tests it, builds the app, and publishes the release; the download
-page picks up the new version on its own.
+Each push to `main` updates an open release pull request with the next version
+and changelog. Merging it tags the release, and the workflow builds `Reclaim.app`
+and attaches it. The download page shows the new version on its own.
