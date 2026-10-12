@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reclaim-disk"
+version = "0.2.0"
+description = "Watch what is eating your Mac's disk, and take it back."
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [{name = "Samuel Oladipupo", email = "psarmmiey@gmail.com"}]
+dependencies = []
+
+[project.optional-dependencies]
+menubar = ["rumps>=0.4.0"]
+
+[project.scripts]
+reclaim = "reclaim.cli:main"
+
+[tool.setuptools]
+packages = ["reclaim", "reclaim.tools"]
+
+[tool.setuptools.package-data]
+reclaim = ["web/*.html"]

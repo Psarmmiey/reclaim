@@ -1,0 +1,817 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reclaim</title>
+<style>
+:root{
+  --ground:#f6f7f8; --surface:#fff; --surface-2:#eef1f3; --raise:#fff;
+  --ink:#12171c; --ink-2:#5c6771; --ink-3:#8d979f;
+  --line:#dde2e6; --line-2:#c4ccd2;
+  --accent:#1c6b58; --accent-soft:#d7ece5;
+  --warn:#a8721a; --warn-soft:#f7ecd6;
+  --crit:#a8451a; --crit-soft:#f7e0d6;
+  --keep:#4a5a6b; --keep-soft:#e5eaee;
+  --shadow:0 1px 2px rgba(18,23,28,.06),0 6px 18px rgba(18,23,28,.06);
+}
+@media (prefers-color-scheme:dark){
+:root{
+  --ground:#0e1216; --surface:#161c21; --surface-2:#1c2329; --raise:#1f272d;
+  --ink:#e7ecef; --ink-2:#93a0aa; --ink-3:#6e7d88;
+  --line:#28313a; --line-2:#3a4650;
+  --accent:#54b89b; --accent-soft:#16332c;
+  --warn:#d8a24e; --warn-soft:#31281a;
+  --crit:#e0784e; --crit-soft:#33211a;
+  --keep:#8fa3b5; --keep-soft:#1f272e;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.32);
+}
+button.primary{color:#0b1512}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);
+  font:14.5px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased}
+.mono{font-family:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace}
+.wrap{max-width:1080px;margin:0 auto;padding:26px 20px 70px;display:flex;flex-direction:column;gap:22px}
+
+/* header */
+header{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap}
+.brand{display:flex;flex-direction:column;gap:2px}
+.brand h1{margin:0;font-size:19px;font-weight:650;letter-spacing:-.01em;display:flex;align-items:center;gap:9px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.dot.low{background:var(--warn)}.dot.critical{background:var(--crit)}
+.dot.busy{animation:pulse 1.1s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+.brand .sub{color:var(--ink-2);font-size:12.5px}
+.hbtns{display:flex;gap:8px}
+button{font:inherit;border-radius:7px;border:1px solid var(--line-2);
+  background:var(--surface);color:var(--ink);padding:7px 13px;cursor:pointer;
+  transition:background .12s,border-color .12s}
+button:hover:not(:disabled){border-color:var(--ink-3)}
+button:disabled{opacity:.45;cursor:default}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:550}
+button.primary:hover:not(:disabled){filter:brightness(1.08)}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* stat cards */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:11px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:11px;
+  padding:14px 16px;box-shadow:var(--shadow)}
+.card .v{font-size:25px;font-weight:650;letter-spacing:-.025em;font-variant-numeric:tabular-nums;line-height:1.1}
+.card .v small{font-size:.55em;font-weight:600;margin-left:2px;letter-spacing:0}
+.card .l{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-2);margin-top:4px}
+.card.free .v{color:var(--accent)}
+.card.free.low .v{color:var(--warn)}
+.card.free.critical .v{color:var(--crit)}
+
+.bar{display:flex;height:9px;border-radius:5px;overflow:hidden;background:var(--surface-2);
+  border:1px solid var(--line)}
+.bar i{display:block;transition:width .4s ease}
+.bar .used{background:var(--ink-3)}
+.bar .safe{background:var(--accent)}
+.bar .free{background:transparent}
+.legend{display:flex;gap:17px;font-size:12px;color:var(--ink-2);flex-wrap:wrap}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:9px;height:9px;border-radius:2px;display:block}
+
+/* tabs */
+nav{display:flex;gap:3px;border-bottom:1px solid var(--line);overflow-x:auto}
+nav button{border:0;background:none;border-bottom:2px solid transparent;border-radius:0;
+  color:var(--ink-2);padding:9px 13px}
+nav button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
+.tab{display:none;flex-direction:column;gap:13px}
+.tab.on{display:flex}
+
+/* toolbar */
+.toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+input[type=search],input[type=number],input[type=text],select{font:inherit;padding:7px 11px;border-radius:7px;
+  border:1px solid var(--line-2);background:var(--surface);color:var(--ink)}
+input[type=search]{flex:1;min-width:180px}
+.chips{display:flex;gap:5px}
+.chips button{padding:6px 12px;font-size:13px;border-radius:20px}
+.chips button[aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+
+/* table */
+.tablewrap{background:var(--surface);border:1px solid var(--line);border-radius:11px;
+  overflow:hidden;box-shadow:var(--shadow)}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--ink-2);font-weight:600;padding:10px 13px;background:var(--surface-2);
+  border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap;user-select:none}
+th:hover{color:var(--ink)}
+td{padding:10px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+tr:hover td{background:var(--surface-2)}
+td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600}
+td.p{font-size:12px;word-break:break-all;color:var(--ink-2);max-width:0;width:52%}
+td.p b{color:var(--ink);font-weight:600}
+td.p .why{color:var(--ink-3);font-style:italic;display:block;margin-top:2px}
+td.c{width:34px}
+input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);cursor:pointer;margin:1px 0 0}
+.tag{display:inline-block;font-size:10px;letter-spacing:.05em;text-transform:uppercase;
+  padding:2.5px 7px;border-radius:20px;font-weight:600;white-space:nowrap}
+.tag.safe{background:var(--accent-soft);color:var(--accent)}
+.tag.review{background:var(--warn-soft);color:var(--warn)}
+.tag.keep{background:var(--keep-soft);color:var(--keep)}
+.src{font-size:10.5px;color:var(--ink-3);margin-left:6px}
+
+/* action bar */
+.actionbar{position:sticky;bottom:14px;display:flex;justify-content:space-between;
+  align-items:center;gap:14px;background:var(--raise);border:1px solid var(--line-2);
+  border-radius:11px;padding:11px 15px;box-shadow:0 6px 22px rgba(0,0,0,.16)}
+.actionbar.hide{display:none}
+.actionbar .n{font-weight:600}
+.empty{padding:34px 16px;text-align:center;color:var(--ink-2)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:22px;z-index:50;
+  background:var(--ink);color:var(--ground);padding:10px 17px;border-radius:9px;
+  font-size:13.5px;box-shadow:0 6px 22px rgba(0,0,0,.3);opacity:0;pointer-events:none;
+  transition:opacity .2s,transform .2s}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(-4px)}
+.settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:13px}
+.field{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:13px 15px;
+  display:flex;flex-direction:column;gap:6px}
+.field label{font-size:12.5px;font-weight:600}
+.field .hint{font-size:12px;color:var(--ink-2)}
+.row-inline{display:flex;align-items:center;gap:9px}
+.note{font-size:12.5px;color:var(--ink-2);line-height:1.6}
+[hidden]{display:none!important}
+nav button{white-space:nowrap}
+/* tools */
+.tgroup{display:flex;flex-direction:column;gap:10px}
+.tgroup h3{margin:6px 0 0;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);font-weight:600}
+.tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.tcard{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:15px 16px 14px;
+  box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px;min-height:176px}
+.tcard .ic{width:34px;height:34px;border-radius:9px;background:var(--accent-soft);color:var(--accent);
+  display:flex;align-items:center;justify-content:center}
+.tcard .ic svg{width:19px;height:19px}
+.tcard h4{margin:2px 0 0;font-size:14.5px;font-weight:650}
+.tcard p{margin:0;font-size:12.5px;color:var(--ink-2);line-height:1.45;flex:1}
+.tcard .st{font-size:12.5px;color:var(--ink-2);display:flex;align-items:center;gap:7px;min-height:18px}
+.tcard .st b{color:var(--ink);font-variant-numeric:tabular-nums}
+.tcard .st.err{color:var(--crit)}
+.tcard .row{display:flex;justify-content:flex-end;gap:7px}
+.spin{width:12px;height:12px;border-radius:50%;border:2px solid var(--line-2);border-top-color:var(--accent);
+  animation:spin .8s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.rv{display:flex;flex-direction:column;gap:12px}
+.rv-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.rv-head h2{margin:0;font-size:17px;font-weight:650;flex:1}
+.rv-head .sub{font-size:12.5px;color:var(--ink-2);width:100%}
+.rv-body{display:grid;grid-template-columns:minmax(200px,280px) 1fr;gap:12px;align-items:start}
+.rv-groups{background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:6px;
+  display:flex;flex-direction:column;gap:2px;max-height:68vh;overflow:auto;box-shadow:var(--shadow)}
+.rv-groups input{margin:4px 4px 8px;font:inherit;font-size:13px;padding:7px 10px;border-radius:7px;
+  border:1px solid var(--line-2);background:var(--surface);color:var(--ink)}
+.rv-groups button{border:0;background:none;text-align:left;padding:8px 10px;border-radius:8px;
+  display:flex;justify-content:space-between;gap:10px;align-items:center;font-size:13.5px}
+.rv-groups button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rv-groups button small{color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.rv-groups button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.rv-groups button.on small{color:var(--accent)}
+.rv-groups .pill{background:var(--accent);color:#fff;border-radius:20px;padding:1px 7px;font-size:10.5px;font-weight:600}
+.rv-items td.l b{display:block;font-weight:600;word-break:break-word}
+.rv-items td.l>span{display:block;font-size:12px;color:var(--ink-2);word-break:break-all}
+.rv-items td.l>em{display:block;font-size:12px;color:var(--warn);font-style:normal}
+.rv-items td.l b .tag{margin-left:6px;vertical-align:1px}
+.rv-items tr.dis td{opacity:.55}
+.fails{background:var(--crit-soft);color:var(--crit);border-radius:10px;padding:10px 14px;font-size:12.5px}
+.fails b{display:block;margin-bottom:4px}
+@media (max-width:760px){.rv-body{grid-template-columns:1fr}.rv-groups{max-height:none}}
+/* clipboard */
+.cb-list{display:flex;flex-direction:column;gap:8px}
+.clip{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:11px 14px;
+  display:grid;grid-template-columns:1fr auto;gap:6px 14px;box-shadow:var(--shadow)}
+.clip pre{margin:0;font:12.5px/1.5 ui-monospace,"SF Mono",Menlo,monospace;white-space:pre-wrap;
+  word-break:break-word;max-height:7.5em;overflow:hidden;color:var(--ink)}
+.clip img{max-width:min(100%,360px);max-height:160px;border-radius:6px;border:1px solid var(--line);display:block}
+.clip .meta{grid-column:1/-1;font-size:11.5px;color:var(--ink-3);display:flex;gap:10px;flex-wrap:wrap}
+.clip .acts{display:flex;gap:6px;align-items:flex-start}
+.clip .acts button{padding:5px 10px;font-size:12.5px}
+.clip.pinned{border-color:var(--accent)}
+.cb-status{font-size:12.5px;color:var(--ink-2)}
+kbd{font:600 11.5px ui-monospace,Menlo,monospace;background:var(--surface-2);border:1px solid var(--line-2);
+  border-bottom-width:2px;border-radius:5px;padding:1px 6px}
+@media (max-width:620px){td.p{width:auto}.hbtns{width:100%}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <h1><span class="dot" id="dot"></span>Reclaim</h1>
+      <div class="sub" id="sub">connecting...</div>
+    </div>
+    <div class="hbtns">
+      <button id="btn-scan">Scan now</button>
+      <button class="primary" id="btn-cleansafe">Clean safe caches</button>
+    </div>
+  </header>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="card" style="display:flex;flex-direction:column;gap:9px">
+    <div class="bar"><i class="used" id="b-used"></i><i class="safe" id="b-safe"></i><i class="free" id="b-free"></i></div>
+    <div class="legend">
+      <span><i style="background:var(--ink-3)"></i>In use</span>
+      <span><i style="background:var(--accent)"></i>Reclaimable without asking</span>
+      <span><i style="background:var(--surface-2);border:1px solid var(--line)"></i>Free</span>
+    </div>
+  </div>
+
+  <nav>
+    <button data-t="targets" aria-selected="true">What's taking space</button>
+    <button data-t="tools">Tools</button>
+    <button data-t="clipboard">Clipboard</button>
+    <button data-t="trash">Trash</button>
+    <button data-t="history">History</button>
+    <button data-t="settings">Settings</button>
+  </nav>
+
+  <section class="tab on" id="t-targets">
+    <div class="toolbar">
+      <div class="chips" id="chips">
+        <button data-f="all" aria-pressed="true">All</button>
+        <button data-f="safe" aria-pressed="false">Safe</button>
+        <button data-f="review" aria-pressed="false">Review</button>
+        <button data-f="keep" aria-pressed="false">Keep</button>
+      </div>
+      <input type="search" id="q" placeholder="Filter by path or name...">
+    </div>
+    <div class="tablewrap"><table id="tbl"></table></div>
+    <div class="actionbar hide" id="actionbar">
+      <div class="n" id="selinfo"></div>
+      <div style="display:flex;gap:8px">
+        <button id="btn-clearsel">Clear</button>
+        <button class="primary" id="btn-cleansel">Delete selected</button>
+      </div>
+    </div>
+    <p class="note">Deleted items move to Reclaim's own trash first and can be restored
+      from the Trash tab until the undo window passes.</p>
+  </section>
+
+  <section class="tab" id="t-tools">
+    <div id="tools-grid" class="rv"></div>
+    <div id="tools-review" class="rv" hidden>
+      <div class="rv-head">
+        <button id="rv-back">&larr; All tools</button>
+        <h2 id="rv-title"></h2>
+        <button id="rv-rescan">Rescan</button>
+        <div class="sub" id="rv-sub"></div>
+      </div>
+      <div id="rv-fails"></div>
+      <div class="rv-body">
+        <div class="rv-groups" id="rv-groups"></div>
+        <div class="tablewrap rv-items"><table id="rv-table"></table></div>
+      </div>
+      <div class="actionbar" id="rv-bar">
+        <div class="n" id="rv-count"></div>
+        <button class="primary" id="rv-act"></button>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab" id="t-clipboard">
+    <div class="toolbar">
+      <input type="search" id="cb-q" placeholder="Search clipboard history..." style="flex:1;min-width:200px">
+      <button id="cb-pause"></button>
+      <button id="cb-clear">Clear history</button>
+    </div>
+    <div class="cb-status" id="cb-status"></div>
+    <div class="cb-list" id="cb-list"></div>
+  </section>
+
+  <section class="tab" id="t-trash">
+    <div class="toolbar">
+      <div class="n" id="trashinfo"></div>
+      <div style="display:flex;gap:8px">
+        <button id="btn-restoreall">Restore all</button>
+        <button class="primary" id="btn-emptytrash">Empty trash</button>
+      </div>
+    </div>
+    <div class="tablewrap"><table id="tbl-trash"></table></div>
+    <p class="note">Reclaim's trash sits on the same disk, so this space only comes back
+      when the trash is emptied. Items are purged automatically when their undo window ends.</p>
+  </section>
+
+  <section class="tab" id="t-history">
+    <div class="tablewrap"><table id="tbl-actions"></table></div>
+    <div class="tablewrap"><table id="tbl-events"></table></div>
+  </section>
+
+  <section class="tab" id="t-settings">
+    <div class="settings" id="settings"></div>
+    <p class="note" id="cfgnote"></p>
+  </section>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const TOKEN = new URLSearchParams(location.search).get('token') || '';
+const H = {'X-Reclaim-Token': TOKEN, 'Content-Type': 'application/json'};
+let STATUS = {}, TARGETS = [], FILTER = 'all', QUERY = '', SORT = 'bytes', DIR = -1;
+const SEL = new Set();
+
+const human = n => { n = Number(n||0); const u=['B','KB','MB','GB','TB'];let i=0;
+  while(Math.abs(n)>=1024 && i<u.length-1){n/=1024;i++;}
+  return (i===0?n.toFixed(0):n.toFixed(1))+' '+u[i]; };
+const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const split = p => { const i=Math.max(p.lastIndexOf('/'),p.lastIndexOf('\\'));
+  return i<0?['',p]:[p.slice(0,i+1),p.slice(i+1)]; };
+const when = ts => { if(!ts) return 'never';
+  const d=Date.now()/1000-ts;
+  if(d<90) return 'just now'; if(d<3600) return Math.round(d/60)+' min ago';
+  if(d<86400) return Math.round(d/3600)+' hr ago'; return Math.round(d/86400)+' days ago'; };
+
+async function api(path, opts={}){
+  const r = await fetch(path, {headers:H, ...opts});
+  if(!r.ok) throw new Error((await r.json().catch(()=>({}))).error || r.statusText);
+  return r.json();
+}
+let toastTimer;
+function toast(msg){
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('on'),2600);
+}
+
+/* ---------------- status ---------------- */
+async function refresh(){
+  try{ STATUS = await api('/api/status'); }
+  catch(e){ document.getElementById('sub').textContent='cannot reach the Reclaim daemon'; return; }
+  const s = STATUS, lvl = s.level;
+  document.getElementById('dot').className = 'dot ' + lvl + (s.scanning?' busy':'');
+  const last = s.last_scan;
+  document.getElementById('sub').textContent =
+    (s.scanning ? 'scanning now' : 'last scan ' + when(last && last.finished_at))
+    + (last ? ' · ' + last.file_count.toLocaleString() + ' files' : '')
+    + (s.version ? ` · v${s.version} build ${s.build}` : '');
+
+  document.getElementById('stats').innerHTML = [
+    ['Free space', human(s.free_bytes), 'free ' + lvl],
+    ['Reclaimable now', human(s.safe_bytes), ''],
+    ['Items flagged', String(s.target_count), ''],
+    ['Freed all time', human(s.reclaimed_total), ''],
+  ].map(([l,v,c])=>`<div class="card ${c}"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
+
+  const disk = s.disk_bytes || 1;
+  const freeP = 100*s.free_bytes/disk, safeP = 100*s.safe_bytes/disk;
+  document.getElementById('b-used').style.width = Math.max(0,100-freeP-safeP)+'%';
+  document.getElementById('b-safe').style.width = safeP+'%';
+  document.getElementById('b-free').style.width = freeP+'%';
+  document.getElementById('btn-cleansafe').disabled = !s.safe_count;
+  document.getElementById('btn-cleansafe').textContent =
+    s.safe_count ? `Clean ${human(s.safe_bytes)} of caches` : 'Nothing to auto-clean';
+  document.getElementById('btn-scan').disabled = !!s.scanning;
+}
+
+/* ---------------- targets ---------------- */
+async function loadTargets(){
+  const d = await api('/api/targets'); TARGETS = d.targets || []; drawTargets();
+}
+function visible(){
+  const q = QUERY.toLowerCase();
+  return TARGETS
+    .filter(t => FILTER==='all' || t.safety===FILTER)
+    .filter(t => !q || t.path.toLowerCase().includes(q) || (t.label||'').toLowerCase().includes(q))
+    .sort((a,b)=>{
+      const va=a[SORT], vb=b[SORT];
+      return (va<vb?-1:va>vb?1:0)*DIR;
+    });
+}
+function drawTargets(){
+  const rows = visible();
+  const cols = [['bytes','Size'],['label','What'],['path','Path'],['safety','Safety']];
+  document.getElementById('tbl').innerHTML =
+    '<thead><tr><th class="c"><input type="checkbox" id="all"></th>' +
+    cols.map(([k,l])=>`<th data-k="${k}">${l}${SORT===k?(DIR<0?' ▾':' ▴'):''}</th>`).join('') +
+    '</tr></thead><tbody>' +
+    (rows.length ? rows.map(t=>{
+      const [dir,base] = split(t.path);
+      const dis = t.safety==='keep' ? 'disabled' : '';
+      return `<tr><td class="c"><input type="checkbox" data-p="${esc(t.path)}" ${dis}
+                ${SEL.has(t.path)?'checked':''}></td>
+        <td class="n">${human(t.bytes)}</td>
+        <td>${esc(t.label)}</td>
+        <td class="p">${esc(dir)}<b>${esc(base)}</b>${
+          t.reason?`<span class="why">${esc(t.reason)}${t.source==='claude'?' — Claude':''}</span>`:''}</td>
+        <td><span class="tag ${t.safety}">${t.safety}</span></td></tr>`;
+    }).join('') : '<tr><td colspan="5" class="empty">No matching items. Run a scan?</td></tr>') +
+    '</tbody>';
+
+  document.querySelectorAll('#tbl th[data-k]').forEach(th=>th.onclick=()=>{
+    const k=th.dataset.k; if(k===SORT) DIR=-DIR; else {SORT=k; DIR=(k==='bytes')?-1:1;}
+    drawTargets();
+  });
+  document.querySelectorAll('#tbl tbody input[type=checkbox]').forEach(cb=>{
+    cb.onchange = () => { cb.checked ? SEL.add(cb.dataset.p) : SEL.delete(cb.dataset.p); drawSel(); };
+  });
+  const all = document.getElementById('all');
+  if(all) all.onchange = () => {
+    rows.filter(t=>t.safety!=='keep').forEach(t=> all.checked ? SEL.add(t.path) : SEL.delete(t.path));
+    drawTargets(); drawSel();
+  };
+  drawSel();
+}
+function drawSel(){
+  const bar = document.getElementById('actionbar');
+  if(!SEL.size){ bar.classList.add('hide'); return; }
+  bar.classList.remove('hide');
+  const bytes = TARGETS.filter(t=>SEL.has(t.path)).reduce((a,t)=>a+t.bytes,0);
+  document.getElementById('selinfo').textContent =
+    `${SEL.size} selected · ${human(bytes)}`;
+}
+
+/* ---------------- tools ---------------- */
+const ICONS = {
+  apps:'<rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><path d="M14 14l5.5 5.5M19.5 14L14 19.5"/>',
+  ghost:'<path d="M6 20V11a6 6 0 0 1 12 0v9l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5z"/><circle cx="10" cy="11" r=".6"/><circle cx="14" cy="11" r=".6"/>',
+  box:'<path d="M4 8l8-4 8 4v8l-8 4-8-4z"/><path d="M4 8l8 4 8-4M12 12v8"/>',
+  copies:'<rect x="8" y="8" width="11" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h1"/>',
+  download:'<path d="M12 4v11M7.5 10.5L12 15l4.5-4.5"/><path d="M5 19h14"/>',
+  hammer:'<path d="M14 6l4 4-2 2-4-4z"/><path d="M12 8L5 15a1.4 1.4 0 0 0 2 2l7-7"/><path d="M14 6l1.5-1.5a2 2 0 0 1 2.8 0"/>',
+  spark:'<path d="M12 3.5l1.8 5.2 5.2 1.8-5.2 1.8L12 17.5l-1.8-5.2L5 10.5l5.2-1.8z"/><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>',
+  power:'<path d="M12 4v8"/><path d="M7.5 6.8a7 7 0 1 0 9 0"/>',
+  bin:'<path d="M5 7h14M10 7V5h4v2M7 7l1 13h8l1-13"/><path d="M10.5 11v5M13.5 11v5"/>',
+};
+const icon = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICONS[k]||ICONS.box}</svg>`;
+const GROUP_ORDER = ['Cleanup','Applications','My Clutter','Performance'];
+let TOOLS = [], TOOL = null, TSEL = new Set(), TGROUP = 0, TPOLL = null, TFILTER = '', TWAS = {};
+const tbusy = t => t && (t.state==='scanning' || t.state==='acting');
+const leaves = items => items.flatMap(i => i.children ? i.children : [i]);
+function tgroups(t){
+  const items = t.items || [];
+  return items.some(i => i.children) ? items.filter(i => i.children)
+       : [{id:'all', label:t.name, children:items}];
+}
+const gbytes = g => g.children.reduce((n,c)=>n+(c.bytes||0),0);
+
+async function loadTools(){
+  let d; try{ d = await api('/api/tools'); }catch(e){ return; }
+  TOOLS = d.tools || [];
+  for(const t of TOOLS){
+    if(TWAS[t.id] && !tbusy(t)){
+      const r = t.result;
+      if(TWAS[t.id]==='acting' && r) toast(`${t.name}: ${r.done.length} done`
+        + (r.freed_bytes?` · freed ${human(r.freed_bytes)}`:'')
+        + (r.trashed_bytes?` · ${human(r.trashed_bytes)} in trash`:'')
+        + (r.failed.length?` · ${r.failed.length} failed`:''));
+      if(TOOL && TOOL.id===t.id) await openTool(t.id, true);
+    }
+    TWAS[t.id] = tbusy(t) ? t.state : null;
+  }
+  drawToolGrid();
+  if(TOOL){ const t = TOOLS.find(x=>x.id===TOOL.id); if(t){ Object.assign(TOOL, t, {items:TOOL.items}); drawReviewChrome(); } }
+  clearTimeout(TPOLL);
+  if(TOOLS.some(tbusy)) TPOLL = setTimeout(loadTools, 1000);
+}
+function drawToolGrid(){
+  const groups = GROUP_ORDER.filter(g => TOOLS.some(t => t.group===g));
+  document.getElementById('tools-grid').innerHTML = groups.map(g => `
+    <div class="tgroup"><h3>${esc(g)}</h3><div class="tgrid">${
+      TOOLS.filter(t=>t.group===g).map(t => {
+        let st;
+        if(tbusy(t)) st = `<span class="spin"></span>${esc(t.message||'Working...')}`;
+        else if(t.error) st = `<span>Failed: ${esc(t.error)}</span>`;
+        else if(t.scanned_at){
+          const u = `${t.count} ${t.unit}${t.count===1?'':'s'}`;
+          st = t.count ? (t.bytes ? `<b>${human(t.bytes)}</b> in ${u}` : `<b>${u}</b>`) : 'Nothing found';
+        }
+        else st = 'Not scanned yet';
+        const btns = tbusy(t) ? '' : (t.scanned_at && t.count
+          ? `<button data-tscan="${t.id}">Rescan</button><button class="primary" data-topen="${t.id}">Review</button>`
+          : `<button class="primary" data-tscan="${t.id}">Scan</button>`);
+        return `<div class="tcard"><div class="ic">${icon(t.icon)}</div><h4>${esc(t.name)}</h4>
+          <p>${esc(t.blurb)}</p><div class="st${t.error?' err':''}">${st}</div><div class="row">${btns}</div></div>`;
+      }).join('')}</div></div>`).join('');
+  document.querySelectorAll('[data-tscan]').forEach(b => b.onclick = () => scanTool(b.dataset.tscan));
+  document.querySelectorAll('[data-topen]').forEach(b => b.onclick = () => openTool(b.dataset.topen));
+}
+async function scanTool(id){
+  await api(`/api/tools/${id}/scan`, {method:'POST'});
+  TWAS[id] = 'scanning'; loadTools();
+}
+async function openTool(id, keepGroup){
+  const t = await api('/api/tools/'+id);
+  const prevGroup = TOOL && TOOL.id===id && keepGroup ? tgroups(TOOL)[TGROUP] : null;
+  TOOL = t;
+  TSEL = new Set(leaves(t.items||[]).filter(i => i.selected && !i.disabled).map(i => i.id));
+  const gs = tgroups(t);
+  TGROUP = prevGroup ? Math.max(0, gs.findIndex(g => g.id===prevGroup.id)) : 0;
+  document.getElementById('tools-grid').hidden = true;
+  document.getElementById('tools-review').hidden = false;
+  if(location.hash !== '#tools/'+id) history.replaceState(null, '', '#tools/'+id);
+  drawReview();
+}
+function closeTool(){
+  TOOL = null; TFILTER = '';
+  document.getElementById('tools-grid').hidden = false;
+  document.getElementById('tools-review').hidden = true;
+  history.replaceState(null, '', '#tools');
+  loadTools();
+}
+function drawReviewChrome(){
+  const t = TOOL, busy = tbusy(t);
+  document.getElementById('rv-title').textContent = t.name;
+  document.getElementById('rv-sub').innerHTML = busy
+    ? `<span class="spin" style="display:inline-block;vertical-align:-2px"></span> ${esc(t.message||'Working...')}`
+    : esc(t.blurb) + (t.scanned_at ? ` · scanned ${when(t.scanned_at)}` : '');
+  document.getElementById('rv-rescan').disabled = busy;
+  const sel = leaves(t.items||[]).filter(i => TSEL.has(i.id));
+  const bytes = sel.reduce((n,i)=>n+(i.bytes||0),0);
+  document.getElementById('rv-count').textContent = sel.length
+    ? `${sel.length} selected${bytes?` · ${human(bytes)}`:''}` : 'Nothing selected';
+  const btn = document.getElementById('rv-act');
+  btn.textContent = busy && t.state==='acting' ? 'Working...' : `${t.verb}${sel.length?` (${sel.length})`:''}`;
+  btn.disabled = busy || !sel.length;
+  const r = t.result;
+  document.getElementById('rv-fails').innerHTML = r && r.failed && r.failed.length
+    ? `<div class="fails"><b>${r.failed.length} could not be done</b>${r.failed.slice(0,8).map(f=>`${esc(f.label||f.id)}: ${esc(f.error)}`).join('<br>')}</div>` : '';
+}
+function drawReview(){
+  const t = TOOL, gs = tgroups(t);
+  const many = gs.length > 12;
+  const shown = gs.map((g,i)=>[g,i]).filter(([g]) => !TFILTER || g.label.toLowerCase().includes(TFILTER));
+  document.getElementById('rv-groups').innerHTML =
+    (many ? `<input type="search" id="rv-filter" placeholder="Filter..." value="${esc(TFILTER)}">` : '') +
+    (shown.length ? shown.map(([g,i]) => {
+      const n = g.children.filter(c => TSEL.has(c.id)).length;
+      const b = gbytes(g);
+      return `<button data-g="${i}" class="${i===TGROUP?'on':''}"><span>${esc(g.label)}</span>
+        ${n?`<span class="pill">${n}</span>`:`<small>${b?human(b):g.children.length}</small>`}</button>`;
+    }).join('') : '<div class="empty">Nothing here.</div>');
+  document.querySelectorAll('#rv-groups [data-g]').forEach(b => b.onclick = () => { TGROUP = +b.dataset.g; drawReview(); });
+  const f = document.getElementById('rv-filter');
+  if(f){ f.oninput = e => { TFILTER = e.target.value.toLowerCase(); drawReview(); document.getElementById('rv-filter').focus(); }; }
+  const g = gs[TGROUP];
+  const rows = g ? g.children : [];
+  const pickable = rows.filter(r => !r.disabled);
+  const allOn = pickable.length && pickable.every(r => TSEL.has(r.id));
+  document.getElementById('rv-table').innerHTML = !rows.length
+    ? '<tbody><tr><td class="empty">Nothing found. Rescan to check again.</td></tr></tbody>'
+    : `<thead><tr><th class="c"><input type="checkbox" id="rv-all" ${allOn?'checked':''} ${pickable.length?'':'disabled'}></th>
+        <th>${esc(g.label)}${g.note?` <span class="src">${esc(g.note)}</span>`:''}</th><th style="text-align:right">${t.id==='background'?'State':'Size'}</th></tr></thead><tbody>` +
+      rows.map(r => `<tr class="${r.disabled?'dis':''}"><td class="c"><input type="checkbox" data-i="${esc(r.id)}"
+          ${TSEL.has(r.id)?'checked':''} ${r.disabled?'disabled':''}></td>
+        <td class="l"><b>${esc(r.label)}${r.safety==='safe'?' <span class="tag safe">rebuilds itself</span>':''}</b>
+          ${r.detail?`<span>${esc(r.detail)}</span>`:''}${r.note?`<em>${esc(r.note)}</em>`:''}</td>
+        <td class="n">${t.id==='background' ? (r.on===false?'Off':'On') : (r.bytes==null?'':human(r.bytes))}</td></tr>`).join('') + '</tbody>';
+  const all = document.getElementById('rv-all');
+  if(all) all.onchange = () => { pickable.forEach(r => all.checked ? TSEL.add(r.id) : TSEL.delete(r.id)); drawReview(); };
+  document.querySelectorAll('#rv-table [data-i]').forEach(c => c.onchange = () => {
+    c.checked ? TSEL.add(c.dataset.i) : TSEL.delete(c.dataset.i); drawReview();
+  });
+  drawReviewChrome();
+}
+document.getElementById('rv-back').onclick = closeTool;
+document.getElementById('rv-rescan').onclick = async () => { await scanTool(TOOL.id); TOOL.state='scanning'; drawReviewChrome(); };
+document.getElementById('rv-act').onclick = async () => {
+  const ids = [...TSEL];
+  const personal = leaves(TOOL.items).some(i => TSEL.has(i.id) && (i.kind==='personal' || i.kind==='app'));
+  const msg = `${TOOL.verb} ${ids.length} item${ids.length===1?'':'s'}?` +
+    (personal ? '\n\nApps and your own files go to Reclaim trash first, so you can restore them.' : '') +
+    (leaves(TOOL.items).some(i => TSEL.has(i.id) && i.kind==='command') ? '\n\nCommands such as simulator or Docker clean-ups cannot be undone.' : '');
+  if(!confirm(msg)) return;
+  await api(`/api/tools/${TOOL.id}/act`, {method:'POST', body:JSON.stringify({ids})});
+  TWAS[TOOL.id] = 'acting'; TOOL.state = 'acting'; drawReviewChrome(); loadTools();
+};
+
+/* ---------------- clipboard ---------------- */
+let CBQ = '', CBT = null, CB = {clips:[]};
+const keys = hk => (hk||'').split('+').map(k=>({cmd:'⌘',command:'⌘',ctrl:'⌃',control:'⌃',alt:'⌥',option:'⌥',opt:'⌥',shift:'⇧'})[k.trim().toLowerCase()]||k.trim().toUpperCase()).map(k=>`<kbd>${esc(k)}</kbd>`).join(' ');
+async function loadClips(){
+  try{ CB = await api('/api/clipboard?q=' + encodeURIComponent(CBQ)); }catch(e){ return; }
+  const st = !CB.recording ? 'Not recording: the menu bar app is not running.'
+    : CB.paused ? 'Paused. Nothing new is being saved.'
+    : `Recording. Press ${keys(CB.hotkey)} anywhere to pick from history. Passwords from password managers are never saved.`;
+  document.getElementById('cb-status').innerHTML = st;
+  document.getElementById('cb-pause').textContent = CB.paused ? 'Resume' : 'Pause';
+  const clips = CB.clips || [];
+  document.getElementById('cb-list').innerHTML = clips.length ? clips.map(c => {
+    let body;
+    if(c.kind==='image') body = `<img alt="Copied image" loading="lazy" src="/api/clipboard/${c.id}/image?token=${encodeURIComponent(TOKEN)}">`;
+    else if(c.kind==='files') body = `<pre>${esc(c.text.split('\n').map(p=>p.replace(/^\/Users\/[^/]+/,'~')).join('\n'))}</pre>`;
+    else body = `<pre>${esc(c.text)}</pre>`;
+    return `<div class="clip${c.pinned?' pinned':''}"><div>${body}</div>
+      <div class="acts"><button data-cb="copy" data-id="${c.id}" ${CB.recording?'':'disabled'}>Copy</button>
+        <button data-cb="${c.pinned?'unpin':'pin'}" data-id="${c.id}">${c.pinned?'Unpin':'Pin'}</button>
+        <button data-cb="delete" data-id="${c.id}" aria-label="Delete">✕</button></div>
+      <div class="meta"><span>${when(c.at)}</span>${c.app?`<span>from ${esc(c.app)}</span>`:''}
+        <span>${c.kind==='text'?`${c.text.length.toLocaleString()} characters`:c.kind==='image'?human(c.bytes):`${c.text.split('\n').length} file(s)`}</span>
+        ${c.pinned?'<span>pinned</span>':''}</div></div>`;
+  }).join('') : `<div class="empty">${CBQ?'Nothing matches.':'Nothing copied yet.'}</div>`;
+  document.querySelectorAll('[data-cb]').forEach(b => b.onclick = async () => {
+    try{
+      await api(`/api/clipboard/${b.dataset.id}/${b.dataset.cb}`, {method:'POST'});
+      if(b.dataset.cb==='copy') toast('Copied. Press ⌘V to paste.');
+      loadClips();
+    }catch(e){ toast(e.message); }
+  });
+}
+document.getElementById('cb-q').oninput = e => { CBQ = e.target.value; clearTimeout(CBT); CBT = setTimeout(loadClips, 180); };
+document.getElementById('cb-pause').onclick = async () => {
+  await api('/api/config', {method:'POST', body:JSON.stringify({clipboard_paused: !CB.paused})}); loadClips();
+};
+document.getElementById('cb-clear').onclick = async () => {
+  if(!confirm('Delete all clipboard history except pinned items?')) return;
+  await api('/api/clipboard/clear', {method:'POST'}); loadClips();
+};
+
+/* ---------------- trash ---------------- */
+function daysLeft(t){
+  const d = Math.ceil((t*1000 - Date.now())/86400000);
+  return d <= 0 ? 'today' : d === 1 ? '1 day' : `${d} days`;
+}
+let TRASH_POLL = null, WAS_EMPTYING = false;
+async function loadTrash(){
+  const d = await api('/api/trash');
+  const items = d.items || [];
+  const e = d.emptying;
+  document.getElementById('trashinfo').textContent = e
+    ? (e.total_bytes ? `Emptying in the background · ${human(e.freed_bytes)} of ${human(e.total_bytes)} freed`
+                     : 'Emptying in the background...')
+    : items.length
+      ? `${items.length} item${items.length===1?'':'s'} · ${human(d.bytes)} still on disk`
+      : 'Trash is empty';
+  document.getElementById('btn-restoreall').disabled = !items.length || !!e;
+  document.getElementById('btn-emptytrash').disabled = !items.length || !!e;
+  document.getElementById('btn-emptytrash').textContent =
+    e ? 'Emptying...' : items.length ? `Empty trash (${human(d.bytes)})` : 'Empty trash';
+  clearTimeout(TRASH_POLL);
+  if(e) TRASH_POLL = setTimeout(()=>{ loadTrash(); refresh(); }, 1500);
+  else if(WAS_EMPTYING) toast('Reclaim trash emptied');
+  WAS_EMPTYING = !!e;
+  document.getElementById('tbl-trash').innerHTML =
+    '<thead><tr><th>Trashed</th><th>Size</th><th>What</th><th>Original location</th><th>Purged in</th><th></th></tr></thead><tbody>' +
+    (items.length ? items.map(a=>{
+      const [dir,base]=split(a.path);
+      return `<tr><td>${when(a.at)}</td><td class="n">${human(a.bytes)}</td>
+        <td>${esc(a.label||'')} <span class="src">${a.mode}</span></td>
+        <td class="p">${esc(dir)}<b>${esc(base)}</b></td>
+        <td>${daysLeft(a.expires_at)}</td>
+        <td><button data-trestore="${a.id}">Restore</button></td></tr>`;
+    }).join('') : '<tr><td colspan="6" class="empty">Nothing in Reclaim\'s trash.</td></tr>') + '</tbody>';
+  document.querySelectorAll('[data-trestore]').forEach(b=>b.onclick=async()=>{
+    b.disabled = true;
+    const r = await api('/api/restore', {method:'POST', body:JSON.stringify({id:+b.dataset.trestore})});
+    toast(r.message); loadTrash(); refresh();
+  });
+}
+document.getElementById('btn-restoreall').onclick = async () => {
+  if(!confirm('Put every item in Reclaim trash back where it came from?')) return;
+  const r = await api('/api/restore-all', {method:'POST'});
+  toast(`Restored ${r.restored}${r.failed.length?` · ${r.failed.length} failed`:''}`);
+  loadTrash(); refresh();
+};
+document.getElementById('btn-emptytrash').onclick = async () => {
+  if(!confirm('Permanently delete everything in Reclaim trash? This cannot be undone.')) return;
+  const r = await api('/api/empty-trash', {method:'POST'});
+  toast(r.started ? 'Emptying in the background' : 'Nothing to empty');
+  loadTrash(); refresh();
+};
+
+/* ---------------- history ---------------- */
+async function loadHistory(){
+  const d = await api('/api/actions');
+  const restorableIds = new Set((d.restorable||[]).map(r=>r.id));
+  document.getElementById('tbl-actions').innerHTML =
+    '<thead><tr><th>When</th><th>Size</th><th>What</th><th>Path</th><th>Result</th><th></th></tr></thead><tbody>' +
+    ((d.actions||[]).length ? d.actions.map(a=>{
+      const [dir,base]=split(a.path);
+      return `<tr><td>${when(a.at)}</td><td class="n">${human(a.bytes)}</td>
+        <td>${esc(a.label||'')} <span class="src">${a.mode}</span></td>
+        <td class="p">${esc(dir)}<b>${esc(base)}</b>${a.error?`<span class="why">${esc(a.error)}</span>`:''}</td>
+        <td><span class="tag ${a.outcome==='failed'?'review':'safe'}">${a.outcome}</span></td>
+        <td>${restorableIds.has(a.id)?`<button data-restore="${a.id}">Restore</button>`:''}</td></tr>`;
+    }).join('') : '<tr><td colspan="6" class="empty">Nothing deleted yet.</td></tr>') + '</tbody>';
+  document.querySelectorAll('[data-restore]').forEach(b=>b.onclick=async()=>{
+    const r = await api('/api/restore', {method:'POST', body:JSON.stringify({id:+b.dataset.restore})});
+    toast(r.message); loadHistory(); refresh();
+  });
+
+  const h = await api('/api/history');
+  document.getElementById('tbl-events').innerHTML =
+    '<thead><tr><th>When</th><th>Event</th></tr></thead><tbody>' +
+    ((h.events||[]).length ? h.events.map(e=>
+      `<tr><td>${when(e.at)}</td><td>${esc(e.message)}</td></tr>`).join('')
+      : '<tr><td colspan="2" class="empty">No events yet.</td></tr>') + '</tbody>';
+}
+
+/* ---------------- settings ---------------- */
+const FIELDS = [
+  ['alert_below_gb','number','Warn me below','GB free before Reclaim notifies you'],
+  ['critical_below_gb','number','Urgent below','GB free before the alert becomes urgent'],
+  ['auto_clean','bool','Auto-clean safe caches','Clear rule-verified caches when space gets tight'],
+  ['auto_clean_below_gb','number','Auto-clean below','GB free that triggers an automatic clean'],
+  ['scan_interval_hours','number','Full scan every','hours'],
+  ['check_interval_minutes','number','Check space every','minutes'],
+  ['undo_days','number','Keep deleted items for','days in Reclaim trash, 0 to delete outright'],
+  ['trash_policy','select','Use the trash','Trash sits on the same disk, so it frees nothing until emptied',
+    [['auto','Decide for me'],['ask','Ask each time'],['always','Always'],['never','Never, delete outright']]],
+  ['notify','bool','Notifications','Show macOS notifications'],
+  ['clipboard','bool','Clipboard history','Remember what you copy (restart Reclaim after changing)'],
+  ['clipboard_hotkey','text','Clipboard picker shortcut','For example ctrl+cmd+v or shift+cmd+c'],
+  ['clipboard_paste','bool','Paste when picked','Paste straight into the app you were in (needs Accessibility)'],
+  ['clipboard_days','number','Keep clipboard items for','days; pinned items are kept forever'],
+  ['clipboard_max_items','number','Clipboard history size','items, not counting pinned ones'],
+  ['classifier','select','Ask Claude about unknowns','Uses your local claude CLI',
+    [['claude','Claude CLI'],['rules','Rules only']]],
+];
+async function loadSettings(){
+  const cfg = await api('/api/config');
+  document.getElementById('settings').innerHTML = FIELDS.map(([k,type,label,hint,opts])=>{
+    let ctl;
+    if(type==='bool') ctl = `<div class="row-inline"><input type="checkbox" id="f-${k}" ${cfg[k]?'checked':''}><span class="hint">${hint}</span></div>`;
+    else if(type==='select') ctl = `<select id="f-${k}">${opts.map(([v,t])=>`<option value="${v}"${cfg[k]===v?' selected':''}>${t}</option>`).join('')}</select><span class="hint">${hint}</span>`;
+    else if(type==='text') ctl = `<input type="text" id="f-${k}" value="${esc(cfg[k]||'')}" spellcheck="false"><span class="hint">${hint}</span>`;
+    else ctl = `<div class="row-inline"><input type="number" id="f-${k}" value="${cfg[k]}" min="0" step="1" style="width:90px"><span class="hint">${hint}</span></div>`;
+    return `<div class="field"><label for="f-${k}">${label}</label>${ctl}</div>`;
+  }).join('') + `<div class="field"><label>Scan root</label>
+      <div class="row-inline"><input type="search" id="f-scan_root" value="${esc(cfg.scan_root)}" style="flex:1">
+      </div><span class="hint">Reclaim only ever looks inside this folder</span></div>`;
+  document.getElementById('cfgnote').textContent =
+    'Changes save as you make them. Auto-clean never touches anything Claude classified — only the built-in rule list.';
+  FIELDS.concat([['scan_root','text']]).forEach(([k,type])=>{
+    const el = document.getElementById('f-'+k); if(!el) return;
+    el.onchange = async () => {
+      const v = type==='bool' ? el.checked : (type==='number' ? Number(el.value) : el.value);
+      try{ await api('/api/config', {method:'POST', body:JSON.stringify({[k]:v})}); toast('Saved'); }
+      catch(e){ toast(e.message); }
+      refresh();
+    };
+  });
+}
+
+/* ---------------- wiring ---------------- */
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('nav button').forEach(x=>x.setAttribute('aria-selected', x===b));
+  document.querySelectorAll('.tab').forEach(s=>s.classList.toggle('on', s.id==='t-'+b.dataset.t));
+  if(b.dataset.t==='history') loadHistory();
+  if(b.dataset.t==='trash') loadTrash();
+  if(b.dataset.t==='clipboard'){ history.replaceState(null,'','#clipboard'); loadClips(); }
+  if(b.dataset.t==='tools'){ if(!location.hash.startsWith('#tools')) history.replaceState(null,'','#tools'); loadTools(); }
+  if(b.dataset.t==='settings') loadSettings();
+});
+document.querySelectorAll('#chips button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#chips button').forEach(x=>x.setAttribute('aria-pressed', x===b));
+  FILTER=b.dataset.f; drawTargets();
+});
+document.getElementById('q').oninput = e => { QUERY=e.target.value; drawTargets(); };
+document.getElementById('btn-scan').onclick = async () => {
+  await api('/api/scan',{method:'POST'}); toast('Scan started'); refresh();
+};
+document.getElementById('btn-clearsel').onclick = () => { SEL.clear(); drawTargets(); };
+document.getElementById('btn-cleansafe').onclick = async () => {
+  if(!confirm('Delete every cache Reclaim considers safe? They rebuild themselves.')) return;
+  const r = await api('/api/clean-safe',{method:'POST'});
+  toast(`Freed ${r.freed_human}${r.trashed_bytes?` · ${r.trashed_human} in trash`:''}`); await refresh(); await loadTargets();
+};
+document.getElementById('btn-cleansel').onclick = async () => {
+  const paths=[...SEL];
+  if(!confirm(`Delete ${paths.length} item(s)? Depending on your trash setting they are deleted or kept in Reclaim trash.`)) return;
+  const r = await api('/api/clean',{method:'POST',body:JSON.stringify({paths})});
+  SEL.clear();
+  toast(`Freed ${r.freed_human}${r.trashed_bytes?` · ${r.trashed_human} in trash`:''}${r.failed.length?` · ${r.failed.length} failed`:''}`);
+  await refresh(); await loadTargets();
+};
+
+async function boot(){
+  if(!TOKEN){ document.getElementById('sub').textContent='no token in the URL'; return; }
+  await refresh(); await loadTargets();
+  const [hashTab, hashTool] = location.hash.slice(1).split('/');
+  const tab = document.querySelector(`nav button[data-t="${hashTab}"]`);
+  if(tab) tab.click();
+  if(hashTab==='tools' && hashTool) openTool(hashTool).catch(()=>{});
+  window.addEventListener('hashchange', () => {
+    const [tb, tl] = location.hash.slice(1).split('/');
+    const b = document.querySelector(`nav button[data-t="${tb}"]`);
+    if(b && b.getAttribute('aria-selected')!=='true') b.click();
+    if(tb==='tools' && tl && (!TOOL || TOOL.id!==tl)) openTool(tl).catch(()=>{});
+    if(tb==='tools' && !tl && TOOL) closeTool();
+  });
+  // One change counter shared with the menu bar: when it moves, reload the
+  // tab you are looking at, whichever side made the change.
+  let seenRev = STATUS.rev, seenBuild = STATUS.build;
+  const tick = async () => {
+    if(document.hidden) return;
+    const before = STATUS.scanning;
+    await refresh();
+    if(seenBuild && STATUS.build && STATUS.build !== seenBuild){ location.reload(); return; }
+    if(STATUS.rev === seenRev && !(before && !STATUS.scanning)) return;
+    seenRev = STATUS.rev;
+    const on = document.querySelector('nav button[aria-selected="true"]');
+    const t = on ? on.dataset.t : 'targets';
+    if(t==='targets') loadTargets();
+    else if(t==='tools'){ if(!TOOLS.some(tbusy)) loadTools(); }
+    else if(t==='clipboard'){ if(document.activeElement !== document.getElementById('cb-q')) loadClips(); }
+    else if(t==='trash') loadTrash();
+    else if(t==='history') loadHistory();
+  };
+  setInterval(tick, 2000);
+  document.addEventListener('visibilitychange', () => { if(!document.hidden) tick(); });
+}
+boot();
+</script>
+</body>
+</html>
