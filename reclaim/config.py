@@ -55,6 +55,10 @@ DEFAULTS = {
     "exclude": [],
     "min_target_mb": 200,                  # ignore anything smaller
     "notify": True,
+
+    # Updates from GitHub releases: "ask" (tell me), "auto" (install when
+    # found), or "off".
+    "auto_update": "ask",
 }
 
 

@@ -307,6 +307,41 @@ def cmd_restart(args):
     return 1
 
 
+def cmd_update(args):
+    """Check GitHub; install unless --check. The running app does the swap."""
+    import json
+    import urllib.error
+    import urllib.request
+    from . import updater
+    try:
+        rel = updater.latest_release()
+    except Exception as e:
+        print(R("  Could not check: %s" % e))
+        return 1
+    s = _running()
+    current = (s or {}).get("version") or __version__
+    if not updater.is_newer(rel["version"], current):
+        print("  " + G("Up to date") + ": %s (latest release %s)" % (current, rel["version"]))
+        return 0
+    print("  Reclaim %s is out (you have %s). Notes: %s" % (rel["version"], current, rel["notes_url"]))
+    if args.check:
+        return 0
+    if not s:
+        print(R("  Start Reclaim first; the running app installs its own updates."))
+        return 1
+    cfg = config.load()
+    base = "http://%s:%s" % (cfg.get("server_host", "127.0.0.1"), cfg.get("server_port", 8765))
+    hdr = {"X-Reclaim-Token": cfg["server_token"], "Content-Type": "application/json"}
+    try:
+        urllib.request.urlopen(urllib.request.Request(base + "/api/update/install", data=b"{}",
+                                                      headers=hdr), timeout=30)
+    except urllib.error.HTTPError as e:
+        print(R("  %s" % json.loads(e.read() or b"{}").get("error", e)))
+        return 1
+    print("  Updating; Reclaim restarts by itself. `reclaim version` shows when it is back.")
+    return 0
+
+
 def cmd_install(args):
     ok, msg = launchd.install(mode=args.mode)
     if ok:
@@ -412,6 +447,10 @@ def build_parser():
 
     s = sub.add_parser("version", help="this copy's version, and the running one's")
     s.set_defaults(func=cmd_version)
+
+    s = sub.add_parser("update", help="install the latest release from GitHub")
+    s.add_argument("--check", action="store_true", help="only say whether there is one")
+    s.set_defaults(func=cmd_update)
 
     s = sub.add_parser("restart", help="restart Reclaim and check it came back")
     s.set_defaults(func=cmd_restart)

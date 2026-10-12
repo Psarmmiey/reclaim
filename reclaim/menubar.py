@@ -77,6 +77,7 @@ def run(daemon=None):
                 rumps.MenuItem("Uninstall an app...", callback=self.on_uninstall),
                 rumps.MenuItem("Reveal biggest in Finder", callback=self.on_reveal),
                 None,
+                rumps.MenuItem("Check for updates...", callback=self.on_update),
                 rumps.MenuItem("Start at login", callback=self.on_login_item),
                 rumps.MenuItem("Reclaim %s" % version_string(), callback=None),
                 rumps.MenuItem("Quit Reclaim", callback=self.on_quit),
@@ -104,6 +105,9 @@ def run(daemon=None):
         @rumps.timer(1)
         def sync(self, _sender):
             """Redraw as soon as anything changes, from here or the dashboard."""
+            note, self._pending_note = getattr(self, "_pending_note", None), None
+            if note:
+                rumps.notification("Reclaim", note, "")
             if self.daemon.rev != self.seen_rev:
                 self.seen_rev = self.daemon.rev
                 self.refresh(None)
@@ -178,6 +182,16 @@ def run(daemon=None):
             else:
                 self.menu["Clean safe caches"].title = "Nothing to auto-clean"
                 self.menu["Clean safe caches"].set_callback(None)
+            up = s.get("update") or {}
+            upd = self.menu["Check for updates..."]
+            if up.get("installing"):
+                upd.title = "Updating: %s" % (up.get("progress") or "...")
+            elif up.get("checking"):
+                upd.title = "Checking for updates..."
+            elif up.get("available"):
+                upd.title = "Update to %s..." % up["available"]["version"]
+            else:
+                upd.title = "Check for updates..."
             item = self.menu["Empty Reclaim trash"]
             e = s["emptying"]
             if e:
@@ -312,6 +326,29 @@ def run(daemon=None):
 
         def on_reveal_item(self, sender):
             subprocess.run(["open", "-R", getattr(sender, "path", "")], check=False)
+
+        def on_update(self, _):
+            up = self.daemon.updater
+            rel = up.state.get("available")
+            if not rel:
+                def check():
+                    found = up.check()
+                    self._pending_note = ("Reclaim %s is out" % found["version"]) if found \
+                        else (up.state.get("error") or "You have the latest version")
+                threading.Thread(target=check, daemon=True).start()
+                return
+            if not _alert(title="Update to Reclaim %s?" % rel["version"],
+                          message="Reclaim downloads it from GitHub, checks it, swaps it in and "
+                                  "restarts. The current version is kept so you can roll back.",
+                          ok="Update", cancel="Not now"):
+                return
+
+            def go():
+                try:
+                    up.install()
+                except Exception as e:
+                    self._pending_note = "Update failed: %s" % e
+            threading.Thread(target=go, daemon=True).start()
 
         def on_login_item(self, sender):
             from . import bundle, launchd

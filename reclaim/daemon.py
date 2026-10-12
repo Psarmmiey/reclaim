@@ -23,9 +23,10 @@ class Daemon:
         self.on_config = []           # called after settings change
         self.rev = 0                  # bumped on every change the UIs should show
         self._lock = threading.Lock()
-        from . import tools
+        from . import tools, updater
         tools.load_all()
         self.tools = tools.Runner(self)
+        self.updater = updater.Updater(self)
 
     # ------------------------------------------------------------ state
 
@@ -52,6 +53,8 @@ class Daemon:
             "trash_bytes": self.trash_bytes(),
             "emptying": dict(self.emptying) if self.emptying else None,
             "rev": self.rev,
+            "update": dict(self.updater.state),
+            "auto_update": self.cfg.get("auto_update", "ask"),
             "pid": os.getpid(),
             "version": __version__,
             "build": BUILD,
@@ -181,7 +184,31 @@ class Daemon:
         hours = self.cfg.get("auto_clean_quiet_hours") or []
         return time.localtime().tm_hour in hours
 
+    def check_for_update(self):
+        """Daily, unless updates are off. Installs if set to automatic."""
+        mode = self.cfg.get("auto_update", "ask")
+        if mode == "off" or not self.updater.due():
+            return
+        rel = self.updater.check()
+        if not rel:
+            return
+        if mode == "auto" and not (self.emptying or self.scanning):
+            try:
+                store.log_event(self.con, "info", "Installing update %s" % rel["version"])
+                self.updater.install()
+            except Exception as e:
+                store.log_event(self.con, "error", "Update failed: %s" % e)
+        elif rel["version"] not in self.updater.notified and self.cfg.get("notify", True):
+            self.updater.notified.add(rel["version"])
+            notify.send("Reclaim %s is out" % rel["version"],
+                        "Install it from the menu bar or the dashboard.",
+                        subtitle="Update available")
+
     def tick(self):
+        try:
+            self.check_for_update()
+        except Exception as e:
+            store.log_event(self.con, "error", "Update check failed: %s" % e)
         free, _total = scan.disk_usage(self.cfg.get("scan_root", "~"))
         level = self.pressure(free)
         scan_age = time.time() - self.last_scan_at

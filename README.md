@@ -25,6 +25,16 @@ Apple Silicon and is not signed with a paid Apple certificate, so the first time
 you open it you need to allow it under System Settings → Privacy & Security →
 Open Anyway. The download page walks through it.
 
+## Updates
+
+Reclaim checks GitHub for a new release once a day. By default it tells you
+(menu bar: **Update to x.y.z...**, or a button in the dashboard); set
+**Settings → Updates** to install automatically, or turn checks off. An update
+is verified against the release's SHA-256, swapped in with the old version kept
+as `Reclaim.app.previous`, and restarted. If you have the local signing
+certificate from `./build-app.sh`, the update is re-signed with it so macOS
+permissions carry over. From the terminal: `reclaim update` (or `--check`).
+
 ## Build from source
 
 ```sh

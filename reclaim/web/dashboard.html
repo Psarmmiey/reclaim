@@ -205,6 +205,7 @@ kbd{font:600 11.5px ui-monospace,Menlo,monospace;background:var(--surface-2);bor
       <div class="sub" id="sub">connecting...</div>
     </div>
     <div class="hbtns">
+      <button class="primary" id="btn-update" hidden></button>
       <button id="btn-scan">Scan now</button>
       <button class="primary" id="btn-cleansafe">Clean safe caches</button>
     </div>
@@ -347,6 +348,11 @@ async function refresh(){
     (s.scanning ? 'scanning now' : 'last scan ' + when(last && last.finished_at))
     + (last ? ' · ' + last.file_count.toLocaleString() + ' files' : '')
     + (s.version ? ` · v${s.version} build ${s.build}` : '');
+  const up = s.update || {}, ub = document.getElementById('btn-update');
+  ub.hidden = !(up.available || up.installing);
+  ub.disabled = !!up.installing;
+  ub.textContent = up.installing ? (up.progress || 'Updating...')
+    : up.available ? `Update to ${up.available.version}` : '';
 
   document.getElementById('stats').innerHTML = [
     ['Free space', human(s.free_bytes), 'free ' + lvl],
@@ -707,6 +713,8 @@ const FIELDS = [
   ['scan_interval_hours','number','Full scan every','hours'],
   ['check_interval_minutes','number','Check space every','minutes'],
   ['undo_days','number','Keep deleted items for','days in Reclaim trash, 0 to delete outright'],
+  ['auto_update','select','Updates','New releases from GitHub, checked once a day',
+    [['ask','Tell me'],['auto','Install automatically'],['off','Never check']]],
   ['trash_policy','select','Use the trash','Trash sits on the same disk, so it frees nothing until emptied',
     [['auto','Decide for me'],['ask','Ask each time'],['always','Always'],['never','Never, delete outright']]],
   ['notify','bool','Notifications','Show macOS notifications'],
@@ -760,6 +768,12 @@ document.querySelectorAll('#chips button').forEach(b=>b.onclick=()=>{
 document.getElementById('q').oninput = e => { QUERY=e.target.value; drawTargets(); };
 document.getElementById('btn-scan').onclick = async () => {
   await api('/api/scan',{method:'POST'}); toast('Scan started'); refresh();
+};
+document.getElementById('btn-update').onclick = async () => {
+  const v = STATUS.update && STATUS.update.available;
+  if(!v || !confirm(`Update to Reclaim ${v.version}? It downloads from GitHub, swaps itself in and restarts. The current version is kept for rollback.`)) return;
+  try{ await api('/api/update/install', {method:'POST'}); toast('Updating...'); refresh(); }
+  catch(e){ toast(e.message); }
 };
 document.getElementById('btn-clearsel').onclick = () => { SEL.clear(); drawTargets(); };
 document.getElementById('btn-cleansafe').onclick = async () => {

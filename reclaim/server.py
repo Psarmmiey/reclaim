@@ -226,6 +226,24 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/api/empty-trash":
             return self._json({"started": d.empty_trash_async()})
 
+        if route == "/api/update/check":
+            threading.Thread(target=d.updater.check, daemon=True).start()
+            return self._json({"started": True})
+
+        if route == "/api/update/install":
+            if not d.updater.state["available"]:
+                d.updater.check()                 # synchronous; bounded by its timeout
+            if not d.updater.state["available"]:
+                return self._json({"error": d.updater.state["error"] or "no update available"}, 409)
+
+            def go():
+                try:
+                    d.updater.install()
+                except Exception as e:
+                    store.log_event(d.con, "error", "Update failed: %s" % e)
+            threading.Thread(target=go, daemon=True).start()
+            return self._json({"started": True})
+
         if route == "/api/clipboard/clear":
             clipboard.clear(_clips(d))
             d.touch()
@@ -286,7 +304,9 @@ class Handler(BaseHTTPRequestHandler):
                        "classifier", "min_target_mb", "scan_root",
                        "trash_policy", "clipboard", "clipboard_paused",
                        "clipboard_hotkey", "clipboard_paste", "clipboard_days",
-                       "clipboard_max_items"}
+                       "clipboard_max_items", "auto_update"}
+            if body.get("auto_update") not in (None, "ask", "auto", "off"):
+                return self._json({"error": "auto_update must be ask, auto or off"}, 400)
             if body.get("trash_policy") not in (None,) + clean.TRASH_POLICIES:
                 return self._json({"error": "bad trash_policy"}, 400)
             if "clipboard_hotkey" in body and not clipboard.parse_hotkey(body["clipboard_hotkey"]):
