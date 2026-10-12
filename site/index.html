@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reclaim for Mac</title>
+<meta name="description" content="A free menu bar app that shows what is eating your Mac's disk, cleans it up safely, and keeps your clipboard history.">
+<style>
+:root{
+  --ground:#f6f7f8; --surface:#fff; --surface-2:#eef1f3;
+  --ink:#12171c; --ink-2:#5c6771; --ink-3:#8d979f;
+  --line:#dde2e6; --accent:#1c6b58; --accent-ink:#fff; --accent-soft:#d7ece5;
+  --warn-soft:#f7ecd6; --warn:#8a5c12;
+  --shadow:0 1px 2px rgba(18,23,28,.06),0 8px 24px rgba(18,23,28,.07);
+}
+@media (prefers-color-scheme:dark){:root{
+  --ground:#0e1216; --surface:#161c21; --surface-2:#1c2329;
+  --ink:#e7ecef; --ink-2:#93a0aa; --ink-3:#6e7d88;
+  --line:#28313a; --accent:#54b89b; --accent-ink:#0b1512; --accent-soft:#16332c;
+  --warn-soft:#31281a; --warn:#d8a24e;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3);
+}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--ground);color:var(--ink);
+  font:16px/1.6 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased}
+a{color:var(--accent)}
+.wrap{max-width:960px;margin:0 auto;padding:0 16px}
+header.top{display:flex;justify-content:space-between;align-items:center;padding:20px 0}
+.brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.01em}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:var(--accent)}
+.top a{font-size:14px;color:var(--ink-2);text-decoration:none}
+.top a:hover{color:var(--ink)}
+
+.hero{padding:56px 0 40px;display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center}
+.hero h1{font-size:clamp(34px,6vw,52px);line-height:1.05;letter-spacing:-.035em;margin:0 0 16px;font-weight:700}
+.hero p.lede{font-size:18px;color:var(--ink-2);margin:0 0 28px;max-width:34em}
+.cta{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:10px;padding:13px 22px;border-radius:11px;
+  font-weight:650;font-size:16px;text-decoration:none;border:1px solid transparent}
+.btn.primary{background:var(--accent);color:var(--accent-ink);box-shadow:var(--shadow)}
+.btn.primary:hover{filter:brightness(1.06)}
+.btn.ghost{border-color:var(--line);color:var(--ink);background:var(--surface)}
+.btn svg{width:18px;height:18px}
+.meta{font-size:13.5px;color:var(--ink-2);margin-top:14px}
+
+/* menu bar mock */
+.mock{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+.mock .bar{display:flex;justify-content:flex-end;gap:14px;align-items:center;padding:7px 14px;
+  background:var(--surface-2);border-bottom:1px solid var(--line);font-size:12.5px;color:var(--ink-2)}
+.mock .bar b{color:var(--ink);font-weight:650}
+.mock ul{list-style:none;margin:0;padding:8px}
+.mock li{display:flex;justify-content:space-between;gap:12px;padding:6px 10px;border-radius:7px;font-size:14px}
+.mock li span{color:var(--ink-2);font-variant-numeric:tabular-nums}
+.mock li.sep{height:1px;background:var(--line);padding:0;margin:6px 4px}
+.mock li.hi{background:var(--accent);color:var(--accent-ink)}
+.mock li.hi span{color:inherit;opacity:.85}
+
+section{padding:36px 0}
+h2{font-size:24px;letter-spacing:-.02em;margin:0 0 18px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:20px;box-shadow:var(--shadow)}
+.card h3{margin:0 0 6px;font-size:17px}
+.card p{margin:0 0 10px;color:var(--ink-2);font-size:14.5px}
+.card ul{margin:0;padding-left:18px;color:var(--ink-2);font-size:14px}
+.card li{margin:3px 0}
+.grid.two{grid-template-columns:1fr 1fr}
+.ic{width:36px;height:36px;border-radius:10px;background:var(--accent-soft);color:var(--accent);
+  display:flex;align-items:center;justify-content:center;margin-bottom:12px}
+.ic svg{width:20px;height:20px}
+
+ol.steps{counter-reset:s;list-style:none;margin:0;padding:0;display:grid;gap:10px}
+ol.steps li{counter-increment:s;display:grid;grid-template-columns:32px 1fr;gap:12px;align-items:start;
+  background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+ol.steps li::before{content:counter(s);width:28px;height:28px;border-radius:50%;background:var(--accent-soft);
+  color:var(--accent);font-weight:700;display:flex;align-items:center;justify-content:center;font-size:14px}
+.note{background:var(--warn-soft);color:var(--ink);border-radius:12px;padding:14px 16px;font-size:14.5px;margin-top:14px}
+.note b{color:var(--warn)}
+pre{margin:10px 0 0;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;
+  padding:12px 14px;overflow-x:auto;font:13.5px/1.55 ui-monospace,"SF Mono",Menlo,monospace}
+code{font:13.5px ui-monospace,"SF Mono",Menlo,monospace;background:var(--surface-2);padding:1px 5px;border-radius:5px}
+pre code{background:none;padding:0}
+footer{padding:36px 0 56px;color:var(--ink-3);font-size:13.5px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+
+@media (max-width:820px){
+  .hero{grid-template-columns:1fr;padding-top:28px}
+  .grid,.grid.two{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><span class="dot"></span>Reclaim</div>
+    <a href="https://github.com/psarmmiey/reclaim">Source on GitHub</a>
+  </header>
+
+  <div class="hero">
+    <div>
+      <h1>See what's eating your Mac's disk. Take it back.</h1>
+      <p class="lede">A free menu bar app that watches your free space, cleans up caches that rebuild themselves,
+        removes apps properly, and keeps your clipboard history. Nothing leaves your Mac.</p>
+      <div class="cta">
+        <a class="btn primary" id="dl" href="https://github.com/psarmmiey/reclaim/releases/latest/download/Reclaim-macOS.zip">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19h14"/></svg>
+          Download for Mac
+        </a>
+        <a class="btn ghost" href="#first-launch">How to open it</a>
+      </div>
+      <div class="meta" id="meta">Apple Silicon · macOS 12 or later · free and open source</div>
+    </div>
+    <div class="mock" aria-hidden="true">
+      <div class="bar"><span>Wi-Fi</span><b>68GB</b><span>12 Oct 09:41</span></div>
+      <ul>
+        <li>68.2 GB free of 460 GB</li>
+        <li class="sep"></li>
+        <li>Biggest items <span>›</span></li>
+        <li class="hi">Clipboard <span>›</span></li>
+        <li class="sep"></li>
+        <li>Clean safe caches <span>14.3 GB</span></li>
+        <li>Empty Reclaim trash <span>2.1 GB</span></li>
+        <li class="sep"></li>
+        <li>Tools…</li>
+        <li>Uninstall an app…</li>
+      </ul>
+    </div>
+  </div>
+
+  <section>
+    <h2>What it does</h2>
+    <div class="grid">
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg></div>
+        <h3>Watches your disk</h3>
+        <p>Free space in the menu bar, an alert before you run out, and a dashboard of what is taking the room.</p>
+        <ul><li>Clears only caches that rebuild themselves, automatically if you like</li>
+          <li>Everything else goes to its own trash first, with undo</li></ul>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg></div>
+        <h3>Nine focused tools</h3>
+        <p>Scan, review, then act on only what you tick.</p>
+        <ul><li>Uninstaller and app leftovers</li><li>Large, old and duplicate files</li>
+          <li>Developer junk: Xcode, simulators, Docker, Homebrew</li><li>AI models and caches, login items, Bins</li></ul>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="5" width="12" height="16" rx="2"/><path d="M9 5V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1M9 11h6M9 15h4"/></svg></div>
+        <h3>Clipboard history</h3>
+        <p>Press <code>⌃⌘V</code> anywhere to pick something you copied earlier and paste it.</p>
+        <ul><li>Searchable, with pinned items</li><li>Never saves what password managers mark as secret</li></ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="first-launch">
+    <h2>The first time you open it</h2>
+    <ol class="steps">
+      <li><div>Unzip the download and drag <b>Reclaim</b> into your Applications folder.</div></li>
+      <li><div>Open it. macOS will say it cannot check the app for malicious software, because Reclaim is not
+        signed with a paid Apple developer certificate. Click <b>Done</b>.</div></li>
+      <li><div>Go to <b>System Settings → Privacy &amp; Security</b>, scroll down, and click <b>Open Anyway</b> next to Reclaim.
+        Confirm with your password. You only do this once.</div></li>
+      <li><div>From the menu bar, choose <b>Start at login</b>. For the clipboard shortcut, turn Reclaim on under
+        <b>Privacy &amp; Security → Accessibility</b> when asked.</div></li>
+    </ol>
+    <div class="note"><b>Prefer the terminal?</b> After moving it to Applications, this clears the download flag in one go:
+      <pre><code>xattr -dr com.apple.quarantine /Applications/Reclaim.app</code></pre></div>
+  </section>
+
+  <section>
+    <h2>Privacy</h2>
+    <div class="grid two">
+      <div class="card"><h3>Stays on your Mac</h3>
+        <p>Reclaim has no account, no analytics and no server. The dashboard runs on your own Mac and needs a
+          private token to open. Clipboard history is stored in a file only your user can read.</p></div>
+      <div class="card"><h3>One optional exception</h3>
+        <p>If you have the <code>claude</code> command-line tool installed, Reclaim can ask it to describe folders
+          its own rules do not recognise. That sends the folder's path to Anthropic. Turn it off under
+          Settings → Ask Claude about unknowns.</p></div>
+    </div>
+  </section>
+
+  <section id="source">
+    <h2>Build it yourself</h2>
+    <p style="color:var(--ink-2);margin:0">On an Intel Mac, or if you would rather not run a downloaded app, build from source.
+      You need Python 3.10 or later from python.org.</p>
+    <pre><code>git clone https://github.com/psarmmiey/reclaim.git
+cd reclaim
+./build-app.sh</code></pre>
+  </section>
+
+  <footer>
+    <span>Reclaim is free and open source.</span>
+    <a href="https://github.com/psarmmiey/reclaim/releases">All releases</a>
+  </footer>
+</div>
+<script>
+// Show the latest version; if there is no release yet, point at building from source.
+fetch('https://api.github.com/repos/psarmmiey/reclaim/releases/latest')
+  .then(r => r.ok ? r.json() : Promise.reject(r.status))
+  .then(rel => {
+    const asset = (rel.assets || []).find(a => a.name === 'Reclaim-macOS.zip');
+    const when = new Date(rel.published_at).toLocaleDateString('en-GB', {day:'numeric', month:'long', year:'numeric'});
+    const size = asset ? ` · ${(asset.size / 1e6).toFixed(0)} MB` : '';
+    document.getElementById('meta').textContent =
+      `Version ${rel.tag_name.replace(/^v/, '')}, ${when}${size} · Apple Silicon · macOS 12 or later`;
+  })
+  .catch(status => {
+    if(status !== 404) return;
+    const dl = document.getElementById('dl');
+    dl.lastChild.textContent = ' Build from source';
+    dl.href = '#source';
+    document.getElementById('meta').textContent = 'No download yet: the first release is on its way.';
+  });
+</script>
+</body>
+</html>

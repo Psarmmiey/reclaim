@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Tests (${{ matrix.os }}, Python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14]
+        python: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Run tests
+        run: python -W error::ResourceWarning -m unittest discover -s tests -v
+
+  app:
+    name: Build Reclaim.app
+    needs: test
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Build
+        env:
+          RECLAIM_SIGN: adhoc
+        run: ./build-app.sh --dist dist
+      - name: Check the bundle starts
+        run: |
+          ditto -x -k dist/Reclaim-*.zip out
+          out/Reclaim.app/Contents/MacOS/Reclaim version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Reclaim-${{ github.sha }}
+          path: dist/
+          retention-days: 14
