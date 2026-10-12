@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/Psarmmiey/reclaim/compare/v0.4.0...v0.4.1) (2026-10-12)
+
+
+### Bug fixes
+
+* update checks fail silently inside the app ([8156f48](https://github.com/Psarmmiey/reclaim/commit/8156f48efdc631f35e11a57117d7324756855875))
+
 ## [0.4.0](https://github.com/Psarmmiey/reclaim/compare/v0.3.0...v0.4.0) (2026-10-12)
 
 
