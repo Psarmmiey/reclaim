@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.0](https://github.com/Psarmmiey/reclaim/compare/v0.4.1...v0.5.0) (2026-10-12)
+
+
+### Features
+
+* running apps, like the Force Quit window ([7fa39da](https://github.com/Psarmmiey/reclaim/commit/7fa39da45f9c6f202b7b3d85a91ab41bcfa88f5c))
+
+
+### Performance
+
+* use less battery when idle and on battery ([77a05ef](https://github.com/Psarmmiey/reclaim/commit/77a05efa8e9508ddf87b3bd0dd7cf7703d5ae34e))
+
 ## [0.4.1](https://github.com/Psarmmiey/reclaim/compare/v0.4.0...v0.4.1) (2026-10-12)
 
 
